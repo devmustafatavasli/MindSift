@@ -5,30 +5,30 @@
 //  Created by Mustafa TAVASLI on 24.11.2025.
 //
 
-
 import SwiftUI
 import SwiftData
 
 struct HomeView: View {
-    // 1. Veritabanı Bağlantısı (Context)
     @Environment(\.modelContext) private var modelContext
-    
-    // 2. Verileri Çekme (Query)
-    // Kayıtları en yeniden en eskiye doğru sıralar
     @Query(sort: \VoiceNote.createdAt, order: .reverse) private var notes: [VoiceNote]
     
-    // 3. Ses Yöneticisi
+    // Yöneticiler
     @StateObject private var audioManager = AudioManager()
+    @StateObject private var speechManager = SpeechManager()
+    
+    // API Servisi (Stateless olduğu için @StateObject gerekmez)
+    private let geminiService = GeminiService()
+    
+    // Yükleniyor durumu (Analiz yapılırken ekranda göstermek için)
+    @State private var isAnalyzing = false
     
     var body: some View {
         NavigationStack {
             ZStack {
-                // Arka Plan Rengi
                 Color(uiColor: .systemGroupedBackground)
                     .ignoresSafeArea()
                 
                 VStack {
-                    // Kayıt Listesi (Varsa)
                     if notes.isEmpty {
                         emptyStateView
                     } else {
@@ -37,27 +37,24 @@ struct HomeView: View {
                     
                     Spacer()
                     
-                    // Kayıt Butonu Alanı
                     recordingSection
                 }
             }
             .navigationTitle("MindSift")
         }
-        // 4. Kayıt bittiğinde veritabanına kaydetme mantığı
+        // KAYIT BİTTİĞİNDE TETİKLENİR
         .onChange(of: audioManager.audioURL) { oldValue, newURL in
             if let url = newURL {
-                saveNote(url: url)
+                processAudio(url: url)
             }
         }
-        // Hata mesajı gösterimi
-        .alert("Hata", isPresented: .constant(audioManager.errorMessage != nil)) {
-            Button("Tamam", role: .cancel) { audioManager.errorMessage = nil }
-        } message: {
-            Text(audioManager.errorMessage ?? "")
+        .onAppear {
+            audioManager.checkPermissions()
+            speechManager.checkPermissions()
         }
     }
     
-    // MARK: - Alt Görünümler (Components)
+    // MARK: - Görünümler
     
     private var emptyStateView: some View {
         VStack(spacing: 20) {
@@ -65,7 +62,7 @@ struct HomeView: View {
             Image(systemName: "mic.circle")
                 .font(.system(size: 80))
                 .foregroundStyle(.gray.opacity(0.5))
-            Text("Henüz bir not yok.\nKaydetmek için butona bas.")
+            Text("Aklındakileri dök.\nMindSift onları düzenler.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.gray)
             Spacer()
@@ -75,38 +72,58 @@ struct HomeView: View {
     private var notesListView: some View {
         List {
             ForEach(notes) { note in
-                HStack {
-                    Image(systemName: note.type.iconName)
-                        .foregroundStyle(.blue)
-                        .frame(width: 30)
-                    
-                    VStack(alignment: .leading) {
-                        Text(note.title ?? "İsimsiz Kayıt")
-                            .font(.headline)
-                        Text(note.createdAt.formatted(date: .numeric, time: .shortened))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                HStack(alignment: .top) {
+                    // İkon ve Öncelik Göstergesi
+                    VStack {
+                        Image(systemName: note.type.iconName)
+                            .foregroundStyle(.blue)
+                            .frame(width: 30, height: 30)
+                            .background(Color.blue.opacity(0.1))
+                            .clipShape(Circle())
+                        
+                        // Eğer öncelik Yüksek ise ünlem göster
+                        if let priority = note.priority, priority == "Yüksek" {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
                     }
-                    Spacer()
                     
-                    if note.isProcessed {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(note.title ?? "İsimsiz")
+                            .font(.headline)
+                        
+                        if let summary = note.summary {
+                            Text(summary)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                        
+                        Text(note.createdAt.formatted(date: .numeric, time: .shortened))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
                 }
+                .padding(.vertical, 4)
             }
             .onDelete(perform: deleteNotes)
         }
-        .scrollContentBackground(.hidden) // Listenin gri arka planını kaldırır
+        .scrollContentBackground(.hidden)
     }
     
     private var recordingSection: some View {
         VStack {
+            // Durum Metinleri
             if audioManager.isRecording {
                 Text("Dinliyorum...")
-                    .font(.headline)
                     .foregroundStyle(.red)
-                    .transition(.opacity)
+            } else if speechManager.isTranscribing {
+                Text("Yazıya dökülüyor...")
+                    .foregroundStyle(.orange)
+            } else if isAnalyzing {
+                Text("AI Analiz Ediyor...")
+                    .foregroundStyle(.purple)
             }
             
             Button {
@@ -118,33 +135,75 @@ struct HomeView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(audioManager.isRecording ? Color.red : Color.blue)
+                        .fill(audioManager.isRecording ? Color.red : (isAnalyzing ? Color.purple : Color.blue))
                         .frame(width: 80, height: 80)
                         .shadow(radius: 10)
                     
-                    Image(systemName: audioManager.isRecording ? "stop.fill" : "mic.fill")
-                        .font(.title)
-                        .foregroundStyle(.white)
+                    // Yükleniyor Animasyonu veya Mikrofon İkonu
+                    if isAnalyzing {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: audioManager.isRecording ? "stop.fill" : "mic.fill")
+                            .font(.title)
+                            .foregroundStyle(.white)
+                    }
                 }
             }
-            // Kayıt sırasındaki animasyon
-            .scaleEffect(audioManager.isRecording ? 1.1 : 1.0)
-            .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: audioManager.isRecording)
+            .disabled(speechManager.isTranscribing || isAnalyzing)
             .padding(.bottom, 30)
         }
     }
     
-    // MARK: - Mantık Fonksiyonları
+    // MARK: - MANTIK MERKEZİ (AI INTEGRATION) 🧠
     
-    private func saveNote(url: URL) {
-        // Yeni bir not nesnesi oluştur
-        // Not: Burada 'audioFileName' olarak sadece dosya adını alıyoruz.
-        let newNote = VoiceNote(audioFileName: url.lastPathComponent)
-        
-        // Veritabanına ekle
-        modelContext.insert(newNote)
-        
-        print("✅ Not veritabanına kaydedildi: \(newNote.id)")
+    private func processAudio(url: URL) {
+        // 1. Sesi Yazıya Çevir
+        speechManager.transcribeAudio(url: url) { text in
+            guard let text = text, !text.isEmpty else {
+                print("Ses anlaşılamadı.")
+                return
+            }
+            
+            // UI'da "Analiz ediliyor" göster
+            self.isAnalyzing = true
+            
+            // 2. Gemini ile Analiz Et
+            geminiService.analyzeText(text: text) { result in
+                DispatchQueue.main.async {
+                    self.isAnalyzing = false
+                    
+                    switch result {
+                    case .success(let analysis):
+                        // 3. Başarılı Analizi Kaydet
+                        // Gelen string tipi Enum'a çevir (Eşleşmezse 'Genel' yap)
+                        let type = NoteType(rawValue: analysis.type) ?? .unclassified
+                        
+                        let newNote = VoiceNote(
+                            audioFileName: url.lastPathComponent,
+                            transcription: text,
+                            title: analysis.title,
+                            summary: analysis.summary,
+                            priority: analysis.priority,
+                            type: type,
+                            isProcessed: true
+                        )
+                        modelContext.insert(newNote)
+                        
+                    case .failure(let error):
+                        // Hata olsa bile notu ham haliyle kaydet (Veri kaybı olmasın)
+                        print("AI Hatası: \(error.localizedDescription)")
+                        let newNote = VoiceNote(
+                            audioFileName: url.lastPathComponent,
+                            transcription: text,
+                            title: text.prefix(20) + "...",
+                            type: .unclassified
+                        )
+                        modelContext.insert(newNote)
+                    }
+                }
+            }
+        }
     }
     
     private func deleteNotes(offsets: IndexSet) {
@@ -154,9 +213,4 @@ struct HomeView: View {
             }
         }
     }
-}
-
-#Preview {
-    HomeView()
-        .modelContainer(for: VoiceNote.self, inMemory: true)
 }

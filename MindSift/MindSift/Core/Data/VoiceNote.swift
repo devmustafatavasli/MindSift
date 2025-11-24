@@ -8,9 +8,6 @@
 import Foundation
 import SwiftData
 
-// Notun türünü belirleyen Enum
-// Codable: Diske yazılabilmesi için gereklidir.
-// CaseIterable: Listelerde tüm seçenekleri gösterebilmek için.
 enum NoteType: String, Codable, CaseIterable {
     case meeting = "Toplantı"
     case task = "Görev"
@@ -18,7 +15,6 @@ enum NoteType: String, Codable, CaseIterable {
     case diary = "Günlük"
     case unclassified = "Genel"
     
-    // Her tipe uygun SF Symbol ikonu
     var iconName: String {
         switch self {
         case .meeting: return "calendar"
@@ -30,37 +26,24 @@ enum NoteType: String, Codable, CaseIterable {
     }
 }
 
-// MARK: - VoiceNote Model
-// @Model makrosu bu sınıfı otomatik olarak veritabanı tablosuna dönüştürür.
-
 @Model
 final class VoiceNote {
-    // Benzersiz kimlik (Primary Key)
     @Attribute(.unique) var id: UUID
-    
-    // Ses dosyasının adı (Tam yol yerine sadece dosya adını saklamak daha güvenlidir)
     var audioFileName: String
-    
-    // AI tarafından yazıya dökülmüş metin
     var transcription: String?
-    
-    // AI tarafından üretilen başlık
     var title: String?
-    
-    // Notun oluşturulma tarihi
+    var summary: String?
+    var priority: String?
     var createdAt: Date
-    
-    // Notun kategorisi
     var type: NoteType
-    
-    // Notun işlenip işlenmediği (Örn: Takvime eklendi mi?)
     var isProcessed: Bool
     
-    // Başlatıcı (Constructor)
     init(id: UUID = UUID(),
          audioFileName: String,
          transcription: String? = nil,
          title: String? = "Yeni Kayıt",
+         summary: String? = nil,
+         priority: String? = "Düşük",
          createdAt: Date = Date(),
          type: NoteType = .unclassified,
          isProcessed: Bool = false) {
@@ -69,6 +52,8 @@ final class VoiceNote {
         self.audioFileName = audioFileName
         self.transcription = transcription
         self.title = title
+        self.summary = summary
+        self.priority = priority
         self.createdAt = createdAt
         self.type = type
         self.isProcessed = isProcessed
