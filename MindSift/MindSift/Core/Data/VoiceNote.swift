@@ -34,6 +34,7 @@ final class VoiceNote {
     var title: String?
     var summary: String?
     var priority: String?
+    var eventDate: Date?
     var createdAt: Date
     var type: NoteType
     var isProcessed: Bool
@@ -44,6 +45,7 @@ final class VoiceNote {
          title: String? = "Yeni Kayıt",
          summary: String? = nil,
          priority: String? = "Düşük",
+         eventDate: Date? = nil,
          createdAt: Date = Date(),
          type: NoteType = .unclassified,
          isProcessed: Bool = false) {
@@ -54,6 +56,7 @@ final class VoiceNote {
         self.title = title
         self.summary = summary
         self.priority = priority
+        self.eventDate = eventDate
         self.createdAt = createdAt
         self.type = type
         self.isProcessed = isProcessed

@@ -15,11 +15,11 @@ struct HomeView: View {
     // Yöneticiler
     @StateObject private var audioManager = AudioManager()
     @StateObject private var speechManager = SpeechManager()
+    @StateObject private var calendarManager = CalendarManager()
     
-    // API Servisi (Stateless olduğu için @StateObject gerekmez)
+    // API Servisi
     private let geminiService = GeminiService()
     
-    // Yükleniyor durumu (Analiz yapılırken ekranda göstermek için)
     @State private var isAnalyzing = false
     
     var body: some View {
@@ -42,7 +42,6 @@ struct HomeView: View {
             }
             .navigationTitle("MindSift")
         }
-        // KAYIT BİTTİĞİNDE TETİKLENİR
         .onChange(of: audioManager.audioURL) { oldValue, newURL in
             if let url = newURL {
                 processAudio(url: url)
@@ -51,6 +50,7 @@ struct HomeView: View {
         .onAppear {
             audioManager.checkPermissions()
             speechManager.checkPermissions()
+            // CalendarManager zaten init içinde izin istiyor
         }
     }
     
@@ -73,7 +73,6 @@ struct HomeView: View {
         List {
             ForEach(notes) { note in
                 HStack(alignment: .top) {
-                    // İkon ve Öncelik Göstergesi
                     VStack {
                         Image(systemName: note.type.iconName)
                             .foregroundStyle(.blue)
@@ -81,7 +80,6 @@ struct HomeView: View {
                             .background(Color.blue.opacity(0.1))
                             .clipShape(Circle())
                         
-                        // Eğer öncelik Yüksek ise ünlem göster
                         if let priority = note.priority, priority == "Yüksek" {
                             Image(systemName: "exclamationmark.circle.fill")
                                 .font(.caption)
@@ -100,9 +98,29 @@ struct HomeView: View {
                                 .lineLimit(2)
                         }
                         
-                        Text(note.createdAt.formatted(date: .numeric, time: .shortened))
+                        if let eventDate = note.eventDate {
+                            HStack {
+                                Image(systemName: "clock")
+                                    .font(.caption)
+                                Text(
+                                    eventDate
+                                        .formatted(
+                                            date: .numeric,
+                                            time: .shortened
+                                        )
+                                )
+                                .font(.caption)
+                            }
+                            .foregroundStyle(.blue)
+                            .padding(.top, 2)
+                        } else {
+                            Text(
+                                note.createdAt
+                                    .formatted(date: .numeric, time: .shortened)
+                            )
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
+                        }
                     }
                 }
                 .padding(.vertical, 4)
@@ -114,7 +132,6 @@ struct HomeView: View {
     
     private var recordingSection: some View {
         VStack {
-            // Durum Metinleri
             if audioManager.isRecording {
                 Text("Dinliyorum...")
                     .foregroundStyle(.red)
@@ -135,18 +152,23 @@ struct HomeView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(audioManager.isRecording ? Color.red : (isAnalyzing ? Color.purple : Color.blue))
+                        .fill(
+                            audioManager.isRecording ? Color.red : (
+                                isAnalyzing ? Color.purple : Color.blue
+                            )
+                        )
                         .frame(width: 80, height: 80)
                         .shadow(radius: 10)
                     
-                    // Yükleniyor Animasyonu veya Mikrofon İkonu
                     if isAnalyzing {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Image(systemName: audioManager.isRecording ? "stop.fill" : "mic.fill")
-                            .font(.title)
-                            .foregroundStyle(.white)
+                        Image(
+                            systemName: audioManager.isRecording ? "stop.fill" : "mic.fill"
+                        )
+                        .font(.title)
+                        .foregroundStyle(.white)
                     }
                 }
             }
@@ -155,44 +177,116 @@ struct HomeView: View {
         }
     }
     
-    // MARK: - MANTIK MERKEZİ (AI INTEGRATION) 🧠
+    // MARK: - MANTIK MERKEZİ 🧠
     
     private func processAudio(url: URL) {
-        // 1. Sesi Yazıya Çevir
         speechManager.transcribeAudio(url: url) { text in
-            guard let text = text, !text.isEmpty else {
-                print("Ses anlaşılamadı.")
-                return
-            }
+            guard let text = text, !text.isEmpty else { return }
             
-            // UI'da "Analiz ediliyor" göster
             self.isAnalyzing = true
             
-            // 2. Gemini ile Analiz Et
             geminiService.analyzeText(text: text) { result in
                 DispatchQueue.main.async {
                     self.isAnalyzing = false
                     
                     switch result {
                     case .success(let analysis):
-                        // 3. Başarılı Analizi Kaydet
-                        // Gelen string tipi Enum'a çevir (Eşleşmezse 'Genel' yap)
-                        let type = NoteType(rawValue: analysis.type) ?? .unclassified
+                        print("🔍 DEBUG: AI Yanıtı Geldi")
+                        print("   - Tip: \(analysis.type)")
+                        print(
+                            "   - Tarih String: \(analysis.event_date ?? "YOK")"
+                        )
                         
+                        let type = NoteType(
+                            rawValue: analysis.type
+                        ) ?? .unclassified
+                        
+                        // --- GÜÇLENDİRİLMİŞ TARİH AYIKLAMA (GÜNCEL) ---
+                        var eventDate: Date? = nil
+                        
+                        if let dateString = analysis.event_date {
+                            // 1. Yöntem: Standart ISO (2024-11-25T14:00:00Z) - Z harfi olan
+                            let isoFormatter = ISO8601DateFormatter()
+                            isoFormatter.formatOptions = [
+                                .withInternetDateTime,
+                                .withFractionalSeconds
+                            ]
+                            eventDate = isoFormatter.date(from: dateString)
+                            
+                            // 2. Yöntem: Basit ISO (Z olmadan) - 2024-11-25T14:00:00
+                            if eventDate == nil {
+                                let simpleISO = ISO8601DateFormatter()
+                                simpleISO.formatOptions = [.withInternetDateTime] // Bazen Z'siz de çalışır
+                                eventDate = simpleISO.date(from: dateString)
+                            }
+                            
+                            // 3. Yöntem: BİZİM İHTİYACIMIZ OLAN (T var, Z yok, Saniye var)
+                            // Örn: 2025-11-25T16:00:00
+                            if eventDate == nil {
+                                let formatter = DateFormatter()
+                                formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+                                formatter.locale = Locale(
+                                    identifier: "en_US_POSIX"
+                                )
+                                eventDate = formatter.date(from: dateString)
+                            }
+                            
+                            // 4. Yöntem: Saniyesiz T'li (2025-11-25T16:00)
+                            if eventDate == nil {
+                                let formatter = DateFormatter()
+                                formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+                                formatter.locale = Locale(
+                                    identifier: "en_US_POSIX"
+                                )
+                                eventDate = formatter.date(from: dateString)
+                            }
+                            
+                            // 5. Yöntem: Düz Format (2025-11-25 16:00)
+                            if eventDate == nil {
+                                let formatter = DateFormatter()
+                                formatter.dateFormat = "yyyy-MM-dd HH:mm"
+                                formatter.locale = Locale(
+                                    identifier: "en_US_POSIX"
+                                )
+                                eventDate = formatter.date(from: dateString)
+                            }
+                        }
+                        
+                        print(
+                            "   - Date Obj: \(eventDate != nil ? "BAŞARILI ✅" : "BAŞARISIZ ❌")"
+                        )
+                        
+                        // --- TAKVİME EKLEME ---
+                        if let date = eventDate, (
+                            type == .meeting || type == .task
+                        ) {
+                            print("   - Takvime ekleme komutu gönderiliyor...")
+                            calendarManager.addEvent(
+                                title: analysis.title,
+                                date: date,
+                                notes: analysis.summary
+                            )
+                        } else {
+                            print(
+                                "   - Takvim atlandı. (Tarih yok veya Tip uymuyor)"
+                            )
+                        }
+                        
+                        // Notu Kaydet
                         let newNote = VoiceNote(
                             audioFileName: url.lastPathComponent,
                             transcription: text,
                             title: analysis.title,
                             summary: analysis.summary,
                             priority: analysis.priority,
+                            eventDate: eventDate,
                             type: type,
                             isProcessed: true
                         )
                         modelContext.insert(newNote)
                         
                     case .failure(let error):
-                        // Hata olsa bile notu ham haliyle kaydet (Veri kaybı olmasın)
-                        print("AI Hatası: \(error.localizedDescription)")
+                        print("❌ AI Hatası: \(error.localizedDescription)")
                         let newNote = VoiceNote(
                             audioFileName: url.lastPathComponent,
                             transcription: text,

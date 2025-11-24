@@ -41,4 +41,5 @@ struct AIAnalysisResult: Codable {
     let summary: String
     let type: String // "Toplantı", "Görev", "Fikir" vb.
     let priority: String // "Yüksek", "Orta", "Düşük"
+    let event_date: String?
 }

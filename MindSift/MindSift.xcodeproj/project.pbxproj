@@ -397,6 +397,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "MindSift, toplantılarınızı ve görevlerinizi takviminize otomatik eklemek için erişim izni ister.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "MindSift, toplantılarınızı ve görevlerinizi takviminize otomatik eklemek için erişim izni ister.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MindSift, sesli notlarınızı alıp analiz edebilmek için mikrofonunuza erişmelidir.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MindSift, kaydettiğiniz notları metne dönüştürmek için konuşma tanıma özelliğini kullanır.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -430,6 +432,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "MindSift, toplantılarınızı ve görevlerinizi takviminize otomatik eklemek için erişim izni ister.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "MindSift, toplantılarınızı ve görevlerinizi takviminize otomatik eklemek için erişim izni ister.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MindSift, sesli notlarınızı alıp analiz edebilmek için mikrofonunuza erişmelidir.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MindSift, kaydettiğiniz notları metne dönüştürmek için konuşma tanıma özelliğini kullanır.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
