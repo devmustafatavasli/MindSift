@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		BC12FF332ED4C87700396CA8 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC12FF322ED4C87600396CA8 /* WidgetKit.framework */; };
+		BC12FF352ED4C87700396CA8 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC12FF342ED4C87700396CA8 /* SwiftUI.framework */; };
+		BC12FF442ED4C87900396CA8 /* MindSiftWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BC12FF302ED4C87600396CA8 /* MindSiftWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		BC12FEF22ED3A97700396CA8 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,17 +27,61 @@
 			remoteGlobalIDString = BC12FEE12ED3A97400396CA8;
 			remoteInfo = MindSift;
 		};
+		BC12FF422ED4C87900396CA8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BC12FEDA2ED3A97400396CA8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BC12FF2F2ED4C87600396CA8;
+			remoteInfo = MindSiftWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		BC12FF492ED4C87900396CA8 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				BC12FF442ED4C87900396CA8 /* MindSiftWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		BC12FEE22ED3A97400396CA8 /* MindSift.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MindSift.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BC12FEF12ED3A97700396CA8 /* MindSiftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MindSiftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BC12FEFB2ED3A97700396CA8 /* MindSiftUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MindSiftUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC12FF302ED4C87600396CA8 /* MindSiftWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MindSiftWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC12FF322ED4C87600396CA8 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		BC12FF342ED4C87700396CA8 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BC12FF452ED4C87900396CA8 /* Exceptions for "MindSiftWidget" folder in "MindSiftWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = BC12FF2F2ED4C87600396CA8 /* MindSiftWidgetExtension */;
+		};
+		BC12FF4D2ED4C8C300396CA8 /* Exceptions for "MindSift" folder in "MindSiftWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Core/MindSiftAttributes.swift,
+			);
+			target = BC12FF2F2ED4C87600396CA8 /* MindSiftWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BC12FEE42ED3A97400396CA8 /* MindSift */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BC12FF4D2ED4C8C300396CA8 /* Exceptions for "MindSift" folder in "MindSiftWidgetExtension" target */,
+			);
 			path = MindSift;
 			sourceTree = "<group>";
 		};
@@ -43,6 +93,14 @@
 		BC12FEFE2ED3A97700396CA8 /* MindSiftUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = MindSiftUITests;
+			sourceTree = "<group>";
+		};
+		BC12FF362ED4C87700396CA8 /* MindSiftWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BC12FF452ED4C87900396CA8 /* Exceptions for "MindSiftWidget" folder in "MindSiftWidgetExtension" target */,
+			);
+			path = MindSiftWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -69,6 +127,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BC12FF2D2ED4C87600396CA8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BC12FF352ED4C87700396CA8 /* SwiftUI.framework in Frameworks */,
+				BC12FF332ED4C87700396CA8 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -78,6 +145,8 @@
 				BC12FEE42ED3A97400396CA8 /* MindSift */,
 				BC12FEF42ED3A97700396CA8 /* MindSiftTests */,
 				BC12FEFE2ED3A97700396CA8 /* MindSiftUITests */,
+				BC12FF362ED4C87700396CA8 /* MindSiftWidget */,
+				BC12FF312ED4C87600396CA8 /* Frameworks */,
 				BC12FEE32ED3A97400396CA8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,8 +157,18 @@
 				BC12FEE22ED3A97400396CA8 /* MindSift.app */,
 				BC12FEF12ED3A97700396CA8 /* MindSiftTests.xctest */,
 				BC12FEFB2ED3A97700396CA8 /* MindSiftUITests.xctest */,
+				BC12FF302ED4C87600396CA8 /* MindSiftWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		BC12FF312ED4C87600396CA8 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				BC12FF322ED4C87600396CA8 /* WidgetKit.framework */,
+				BC12FF342ED4C87700396CA8 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -102,10 +181,12 @@
 				BC12FEDE2ED3A97400396CA8 /* Sources */,
 				BC12FEDF2ED3A97400396CA8 /* Frameworks */,
 				BC12FEE02ED3A97400396CA8 /* Resources */,
+				BC12FF492ED4C87900396CA8 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				BC12FF432ED4C87900396CA8 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				BC12FEE42ED3A97400396CA8 /* MindSift */,
@@ -163,6 +244,28 @@
 			productReference = BC12FEFB2ED3A97700396CA8 /* MindSiftUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		BC12FF2F2ED4C87600396CA8 /* MindSiftWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BC12FF462ED4C87900396CA8 /* Build configuration list for PBXNativeTarget "MindSiftWidgetExtension" */;
+			buildPhases = (
+				BC12FF2C2ED4C87600396CA8 /* Sources */,
+				BC12FF2D2ED4C87600396CA8 /* Frameworks */,
+				BC12FF2E2ED4C87600396CA8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BC12FF362ED4C87700396CA8 /* MindSiftWidget */,
+			);
+			name = MindSiftWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = MindSiftWidgetExtension;
+			productReference = BC12FF302ED4C87600396CA8 /* MindSiftWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +287,9 @@
 						CreatedOnToolsVersion = 26.1.1;
 						TestTargetID = BC12FEE12ED3A97400396CA8;
 					};
+					BC12FF2F2ED4C87600396CA8 = {
+						CreatedOnToolsVersion = 26.1.1;
+					};
 				};
 			};
 			buildConfigurationList = BC12FEDD2ED3A97400396CA8 /* Build configuration list for PBXProject "MindSift" */;
@@ -203,6 +309,7 @@
 				BC12FEE12ED3A97400396CA8 /* MindSift */,
 				BC12FEF02ED3A97700396CA8 /* MindSiftTests */,
 				BC12FEFA2ED3A97700396CA8 /* MindSiftUITests */,
+				BC12FF2F2ED4C87600396CA8 /* MindSiftWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +330,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		BC12FEF92ED3A97700396CA8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC12FF2E2ED4C87600396CA8 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +367,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BC12FF2C2ED4C87600396CA8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +386,11 @@
 			isa = PBXTargetDependency;
 			target = BC12FEE12ED3A97400396CA8 /* MindSift */;
 			targetProxy = BC12FEFC2ED3A97700396CA8 /* PBXContainerItemProxy */;
+		};
+		BC12FF432ED4C87900396CA8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BC12FF2F2ED4C87600396CA8 /* MindSiftWidgetExtension */;
+			targetProxy = BC12FF422ED4C87900396CA8 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -401,6 +527,7 @@
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "MindSift, toplantılarınızı ve görevlerinizi takviminize otomatik eklemek için erişim izni ister.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MindSift, sesli notlarınızı alıp analiz edebilmek için mikrofonunuza erişmelidir.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MindSift, kaydettiğiniz notları metne dönüştürmek için konuşma tanıma özelliğini kullanır.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -436,6 +563,7 @@
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "MindSift, toplantılarınızı ve görevlerinizi takviminize otomatik eklemek için erişim izni ister.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MindSift, sesli notlarınızı alıp analiz edebilmek için mikrofonunuza erişmelidir.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MindSift, kaydettiğiniz notları metne dönüştürmek için konuşma tanıma özelliğini kullanır.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -538,6 +666,64 @@
 			};
 			name = Release;
 		};
+		BC12FF472ED4C87900396CA8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MindSiftWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MindSiftWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.devmustafatavasli.MindSift.MindSiftWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BC12FF482ED4C87900396CA8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MindSiftWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MindSiftWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.devmustafatavasli.MindSift.MindSiftWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -573,6 +759,15 @@
 			buildConfigurations = (
 				BC12FF0C2ED3A97700396CA8 /* Debug */,
 				BC12FF0D2ED3A97700396CA8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BC12FF462ED4C87900396CA8 /* Build configuration list for PBXNativeTarget "MindSiftWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC12FF472ED4C87900396CA8 /* Debug */,
+				BC12FF482ED4C87900396CA8 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

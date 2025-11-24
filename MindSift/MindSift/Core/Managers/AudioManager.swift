@@ -6,44 +6,41 @@
 //
 
 import Foundation
-import Combine
 import AVFoundation
-
-// MARK: - Audio Manager
-// Uygulamanın ses kayıt işlemlerini yöneten merkezi sınıf.
-// NSObject: AVAudioRecorderDelegate olabilmek için gereklidir.
-// ObservableObject: UI'ın (Arayüzün) bu sınıftaki değişiklikleri dinleyebilmesi için.
+import ActivityKit // <-- YENİ: Ada için gerekli
+import Combine
 
 class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
     
-    // UI'ın anlık takip edeceği değişkenler (@Published)
     @Published var isRecording: Bool = false
-    @Published var audioURL: URL? // Kaydedilen son dosyanın adresi
-    @Published var errorMessage: String? // Hata olursa kullanıcıya göstermek için
+    @Published var audioURL: URL?
+    @Published var errorMessage: String?
     
     private var audioRecorder: AVAudioRecorder?
     
-    // Uygulama açıldığında izinleri kontrol et
+    // Live Activity Referansı
+    private var currentActivity: Activity<MindSiftAttributes>?
+    
     override init() {
         super.init()
         checkPermissions()
     }
     
-    // MARK: - Kayıt İşlemleri
-    
     func startRecording() {
-        // 1. Ses oturumunu ayarla (Hem kayıt yap hem de çalınabilsin)
         let audioSession = AVAudioSession.sharedInstance()
         
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
+            try audioSession
+                .setCategory(
+                    .playAndRecord,
+                    mode: .default,
+                    options: [.defaultToSpeaker, .allowBluetooth]
+                )
             try audioSession.setActive(true)
             
-            // 2. Dosya ismini oluştur (Benzersiz olması için tarih kullanıyoruz)
             let fileName = "voice_note_\(Date().timeIntervalSince1970).m4a"
             let url = getDocumentsDirectory().appendingPathComponent(fileName)
             
-            // 3. Kalite Ayarları (M4A - AAC formatı idealdir)
             let settings: [String: Any] = [
                 AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
                 AVSampleRateKey: 12000,
@@ -51,15 +48,15 @@ class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
                 AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
             ]
             
-            // 4. Kaydediciyi başlat
             audioRecorder = try AVAudioRecorder(url: url, settings: settings)
             audioRecorder?.delegate = self
             audioRecorder?.record()
             
-            // UI'ı güncelle (Ana thread'de yapılmalı)
             DispatchQueue.main.async {
                 self.isRecording = true
                 self.errorMessage = nil
+                // 👇 YENİ: Kayıt başlayınca adayı başlat
+                self.startLiveActivity()
             }
             print("🎙️ Kayıt başladı: \(url.lastPathComponent)")
             
@@ -75,68 +72,85 @@ class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
         
         DispatchQueue.main.async {
             self.isRecording = false
-            // Kayıt bitince dosya URL'ini sakla
             self.audioURL = self.audioRecorder?.url
+            // 👇 YENİ: Kayıt bitince adayı kapat
+            self.stopLiveActivity()
         }
         print("🛑 Kayıt durdu.")
     }
     
-    // MARK: - Yardımcı Fonksiyonlar
+    // MARK: - Live Activity Yönetimi 🏝️
     
-    // Mikrofon izni kontrolü
+    private func startLiveActivity() {
+        // Live Activity verilerini hazırla
+        let attributes = MindSiftAttributes(activityName: "Ses Kaydı")
+        let contentState = MindSiftAttributes.ContentState(
+            status: "Dinliyor...",
+            timer: Date()
+        )
+        
+        do {
+            let activity = try Activity<MindSiftAttributes>.request(
+                attributes: attributes,
+                content: .init(state: contentState, staleDate: nil),
+                pushType: nil
+            )
+            self.currentActivity = activity
+            print("🏝️ Dynamic Island Başlatıldı: \(activity.id)")
+        } catch {
+            print("❌ Live Activity Hatası: \(error.localizedDescription)")
+        }
+    }
+    
+    private func stopLiveActivity() {
+        guard let activity = currentActivity else { return }
+        
+        let finalState = MindSiftAttributes.ContentState(
+            status: "Kaydedildi",
+            timer: Date()
+        )
+        
+        Task {
+            await activity.end(
+                ActivityContent(state: finalState, staleDate: nil),
+                dismissalPolicy: .default // Hemen kapatma, sonucu biraz göster
+            )
+            self.currentActivity = nil
+            print("🏝️ Dynamic Island Sonlandırıldı.")
+        }
+    }
+    
+    // MARK: - Helper & Permissions
+    
     func checkPermissions() {
-        if #available(iOS 17.0, *) {
-            switch AVAudioApplication.shared.recordPermission {
-            case .granted:
-                break
-            case .denied:
-                DispatchQueue.main.async {
-                    self.errorMessage = "Mikrofon izni reddedildi. Ayarlardan açmanız gerekiyor."
-                }
-            case .undetermined:
-                AVAudioApplication.requestRecordPermission { allowed in
-                    if !allowed {
-                        DispatchQueue.main.async {
+        switch AVAudioSession.sharedInstance().recordPermission {
+        case .granted: break
+        case .denied:
+            DispatchQueue.main
+                .async { self.errorMessage = "Mikrofon izni reddedildi." }
+        case .undetermined:
+            AVAudioSession.sharedInstance().requestRecordPermission { allowed in
+                if !allowed {
+                    DispatchQueue.main
+                        .async {
                             self.errorMessage = "Mikrofon izni verilmedi."
                         }
-                    }
                 }
-            @unknown default:
-                break
             }
-        } else {
-            // Fallback for iOS versions prior to 17.0
-            switch AVAudioSession.sharedInstance().recordPermission {
-            case .granted:
-                break
-            case .denied:
-                DispatchQueue.main.async {
-                    self.errorMessage = "Mikrofon izni reddedildi. Ayarlardan açmanız gerekiyor."
-                }
-            case .undetermined:
-                AVAudioSession.sharedInstance().requestRecordPermission { allowed in
-                    if !allowed {
-                        DispatchQueue.main.async {
-                            self.errorMessage = "Mikrofon izni verilmedi."
-                        }
-                    }
-                }
-            @unknown default:
-                break
-            }
+        @unknown default: break
         }
     }
     
-    // Dosyaların kaydedileceği klasörü bulur
     private func getDocumentsDirectory() -> URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
     
-    // AVAudioRecorderDelegate: Kayıt beklenmedik şekilde kesilirse (örn: telefon çalarsa)
-    func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
-        if !flag {
-            stopRecording()
-        }
+    func audioRecorderDidFinishRecording(
+        _ recorder: AVAudioRecorder,
+        successfully flag: Bool
+    ) {
+        if !flag { stopRecording() }
     }
 }
 
