@@ -33,16 +33,13 @@ struct ModelInfo: Codable {
 }
 
 class GeminiService {
-    // ⚠️ Secrets.swift kullanıyorsan oradan çek, yoksa buraya yapıştır.
     private let apiKey = Secrets.geminiAPIKey
-    
-    // Model: Kararlı sürüm
     private let currentModel = "gemini-flash-latest"
-    
+        
     private var baseURL: String {
         "https://generativelanguage.googleapis.com/v1beta/models/\(currentModel):generateContent"
     }
-    
+        
     func analyzeText(
         text: String,
         completion: @escaping (Result<AIAnalysisResult, Error>) -> Void
@@ -51,35 +48,40 @@ class GeminiService {
             completion(.failure(APIError.invalidURL))
             return
         }
-        
-        // 🗓️ GÜÇLENDİRİLMİŞ TARİH MANTIĞI
-        // AI'ya sadece tarihi değil, gün ismini de veriyoruz (Örn: "24 Kasım 2025 Pazartesi")
+            
+        let is24Hour = UserDefaults.standard.object(
+            forKey: "is24HourTime"
+        ) as? Bool ?? true
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "dd MMMM yyyy EEEE HH:mm"
+        dateFormatter.dateFormat = is24Hour ? "dd MMMM yyyy EEEE HH:mm" : "dd MMMM yyyy EEEE h:mm a"
         dateFormatter.locale = Locale(identifier: "tr_TR")
         let currentDateString = dateFormatter.string(from: Date())
-        
+            
+        // 🧠 GELİŞMİŞ PROMPT
         let promptText = """
-        Bugünün tam tarihi ve saati: \(currentDateString).
-        
-        Aşağıdaki metni bir asistan gibi analiz et.
-        Metin: "\(text)"
-        
-        GÖREVLER:
-        1. İçerikten bir başlık ve özet çıkar.
-        2. Metindeki niyetin tipini belirle (Toplantı, Görev, vb.).
-        3. Metinde BELİRGİN bir zaman ifadesi var mı? (Örn: "Yarın", "Haftaya Salı", "Akşam 5'te", "25'inde").
-        4. Eğer zaman ifadesi varsa, verdiğim bugünün tarihini referans alarak o günün tarihini hesapla.
-        
-        YANIT FORMATI (Sadece JSON):
-        {
-            "title": "Kısa başlık",
-            "summary": "Tek cümlelik özet",
-            "type": "Toplantı | Görev | Fikir | Günlük | Genel",
-            "priority": "Yüksek | Orta | Düşük",
-            "event_date": "Hesapladığın tarihi ISO 8601 formatında yaz (YYYY-MM-DDTHH:mm:ss). Eğer metinde hiç zaman yoksa null yap."
-        }
-        """
+            Bugünün tarihi: \(currentDateString).
+            
+            GÖREV: Aşağıdaki metni bir "Kişisel Asistan" gibi analiz et. Metnin BİR EYLEM mi yoksa BİR ANI/KAYIT mı olduğunu tespit et.
+            Metin: "\(text)"
+            
+            1. TÜR BELİRLEME:
+               - Eğer birine bir şey göndermek, iletmek isteniyorsa -> 'E-posta'
+               - Belirli bir zamanda bir yere gidilecekse -> 'Toplantı'
+               - Yapılacak bir iş varsa -> 'Görev'
+               - Bir gezi, anı, gözlem anlatılıyorsa -> 'Seyahat' veya 'Günlük'
+               - Sadece bir fikir ise -> 'Fikir'
+            
+            2. ÇIKTI FORMATI (JSON):
+            {
+                "title": "Kısa, vurucu başlık",
+                "summary": "İçeriğin özeti (Eğer bu bir e-postaysa, mailin amacını özetle)",
+                "type": "E-posta | Toplantı | Görev | Fikir | Günlük | Seyahat | Genel",
+                "priority": "Yüksek | Orta | Düşük",
+                "event_date": "Eğer net bir tarih varsa ISO 8601 (YYYY-MM-DDTHH:mm:ss), yoksa null",
+                "email_subject": "Eğer tür 'E-posta' ise uygun bir konu başlığı yaz, değilse null",
+                "email_body": "Eğer tür 'E-posta' ise, son derece profesyonel ve nazik bir mail taslağı yaz. Gönderen kısmını boş bırak. Değilse null."
+            }
+            """
         
         let requestBody = GeminiRequest(
             contents: [GeminiContent(parts: [GeminiPart(text: promptText)])],
@@ -103,9 +105,9 @@ class GeminiService {
         
         URLSession.shared
             .dataTask(with: request) {
- [weak self] data,
- response,
- error in
+                [weak self] data,
+                response,
+                error in
                 if let error = error {
                     print("❌ Ağ Hatası: \(error.localizedDescription)")
                     completion(.failure(error))
@@ -117,12 +119,13 @@ class GeminiService {
                     return
                 }
             
-                // Debug için ham veriyi yazdır
+                // Debug: Ham veriyi yazdır
                 if let rawString = String(data: data, encoding: .utf8) {
                     print("📦 API Cevabı: \(rawString)")
                 }
             
                 do {
+                    // Önce Hata Kontrolü
                     if let errorResponse = try? JSONDecoder().decode(
                         GeminiErrorResponse.self,
                         from: data
@@ -138,6 +141,7 @@ class GeminiService {
                         return
                     }
 
+                    // Başarılı Cevap
                     let apiResponse = try JSONDecoder().decode(
                         GeminiResponse.self,
                         from: data
@@ -173,7 +177,7 @@ class GeminiService {
         let listURLString = "https://generativelanguage.googleapis.com/v1beta/models?key=\(apiKey)"
         guard let url = URL(string: listURLString) else { return }
         URLSession.shared.dataTask(with: url) {
- data,
+            data,
             _,
             _ in
             guard let data = data,

@@ -13,6 +13,10 @@ struct NoteDetailView: View {
     @Environment(\.dismiss) var dismiss
     @State private var showShareSheet = false
     
+    // 👇 YENİ: Hata mesajı için durumlar
+    @State private var showAlert = false
+    @State private var alertMessage = ""
+    
     var body: some View {
         ZStack {
             // Arka Plan
@@ -21,26 +25,103 @@ struct NoteDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     
-                    // 1. BAŞLIK VE TARİH ALANI
+                    // 1. BAŞLIK ALANI
                     VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: note.type.iconName)
+                                .foregroundStyle(.blue)
+                                .font(.title2)
+                            
+                            Text(note.type.rawValue)
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.1))
+                                .foregroundStyle(.blue)
+                                .clipShape(Capsule())
+                        }
+                        
                         Text(note.title ?? "İsimsiz Not")
                             .font(.system(.largeTitle, design: .rounded))
                             .fontWeight(.bold)
                             .foregroundStyle(.primary)
                         
-                        HStack {
-                            Image(systemName: "calendar")
-                            Text(
-                                note.createdAt
-                                    .formatted(date: .long, time: .shortened)
-                            )
-                        }
+                        Text(
+                            note.createdAt
+                                .formatted(date: .long, time: .shortened)
+                        )
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     }
                     .padding(.top, 20)
                     
-                    // 2. AI ÖZET KARTI (Varsa)
+                    // 2. MAİL AKSİYON KARTI
+                    if note.type == .email, let subject = note.emailSubject, let body = note.emailBody {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Label(
+                                "E-posta Taslağı",
+                                systemImage: "envelope.fill"
+                            )
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("KONU")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white.opacity(0.7))
+                                Text(subject)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.white)
+                                
+                                Divider().overlay(.white.opacity(0.3))
+                                
+                                Text("İÇERİK")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white.opacity(0.7))
+                                Text(body)
+                                    .font(.callout)
+                                    .foregroundStyle(.white.opacity(0.9))
+                                    .lineLimit(4)
+                            }
+                            
+                            Button {
+                                openMailApp(subject: subject, body: body)
+                            } label: {
+                                HStack {
+                                    Text("Mail Uygulamasında Aç")
+                                    Spacer()
+                                    Image(
+                                        systemName: "arrow.up.right.circle.fill"
+                                    )
+                                }
+                                .fontWeight(.bold)
+                                .padding()
+                                .background(Color.white)
+                                .foregroundStyle(.blue)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                        }
+                        .padding()
+                        .background(
+                            LinearGradient(
+                                colors: [Color.blue, Color.purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .shadow(
+                            color: .blue.opacity(0.3),
+                            radius: 10,
+                            x: 0,
+                            y: 5
+                        )
+                    }
+                    
+                    // 3. AI ÖZET KARTI
                     if let summary = note.summary {
                         VStack(alignment: .leading, spacing: 12) {
                             Label("AI Özeti", systemImage: "sparkles")
@@ -62,43 +143,16 @@ struct NoteDetailView: View {
                         )
                     }
                     
-                    // 3. TAKVİM BİLGİSİ (Varsa)
-                    if let eventDate = note.eventDate {
-                        HStack {
-                            Image(systemName: "calendar.badge.clock")
-                                .font(.title2)
-                                .foregroundStyle(.blue)
-                            
-                            VStack(alignment: .leading) {
-                                Text("Etkinlik Zamanı")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(
-                                    eventDate
-                                        .formatted(
-                                            date: .complete,
-                                            time: .shortened
-                                        )
-                                )
-                                .font(.headline)
-                            }
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.blue.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    
-                    // 4. TAM METİN (Transkript)
+                    // 4. TAM METİN
                     VStack(alignment: .leading, spacing: 12) {
-                        Label("Not İçeriği", systemImage: "text.alignleft")
+                        Label("Transkript", systemImage: "text.alignleft")
                             .font(.headline)
                             .foregroundStyle(.gray)
                         
                         Text(note.transcription ?? "Ses çözülemedi.")
                             .font(.body)
                             .foregroundStyle(.primary)
-                            .lineSpacing(6) // Okumayı kolaylaştırır
+                            .lineSpacing(6)
                     }
                     .padding()
                     .background(
@@ -111,7 +165,6 @@ struct NoteDetailView: View {
                 .padding(.horizontal)
             }
         }
-        // Navigasyon Bar Ayarları
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -123,13 +176,40 @@ struct NoteDetailView: View {
                 }
             }
         }
-        // Paylaşım Sayfası (Sheet)
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: [generateShareText()])
         }
+        // 👇 YENİ: Hata Alert'i
+        .alert("Bilgi", isPresented: $showAlert) {
+            Button("Tamam", role: .cancel) { }
+        } message: {
+            Text(alertMessage)
+        }
     }
     
-    // Paylaşılacak metni oluştur
+    // 👇 GÜNCELLENMİŞ FONKSİYON: Hata Yönetimi Ekli
+    private func openMailApp(subject: String, body: String) {
+        let encodedSubject = subject.addingPercentEncoding(
+            withAllowedCharacters: .urlQueryAllowed
+        ) ?? ""
+        let encodedBody = body.addingPercentEncoding(
+            withAllowedCharacters: .urlQueryAllowed
+        ) ?? ""
+        
+        if let url = URL(
+            string: "mailto:?subject=\(encodedSubject)&body=\(encodedBody)"
+        ) {
+            if UIApplication.shared.canOpenURL(url) {
+                UIApplication.shared.open(url)
+            } else {
+                // Mail uygulaması yoksa (Simülatör durumu)
+                UIPasteboard.general.string = "Konu: \(subject)\n\n\(body)"
+                alertMessage = "Mail uygulaması bulunamadı. İçerik panoya kopyalandı."
+                showAlert = true
+            }
+        }
+    }
+    
     private func generateShareText() -> String {
         """
         📄 \(note.title ?? "Sesli Not")
@@ -144,7 +224,6 @@ struct NoteDetailView: View {
     }
 }
 
-// Paylaşım Menüsü İçin Yardımcı Yapı (UIKit Wrapper)
 struct ShareSheet: UIViewControllerRepresentable {
     var items: [Any]
     

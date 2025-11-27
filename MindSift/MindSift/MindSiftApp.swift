@@ -10,9 +10,16 @@ import SwiftData
 
 @main
 struct MindSiftApp: App {
+    
+    @AppStorage("hasSeenOnboarding") var hasSeenOnboarding: Bool = false
+    
     var body: some Scene {
         WindowGroup {
-            HomeView()
+            if hasSeenOnboarding {
+                HomeView()
+            } else {
+                OnboardingView()
+            }
         }
         .modelContainer(for: VoiceNote.self)
     }

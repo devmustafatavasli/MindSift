@@ -39,7 +39,10 @@ struct GeminiCandidate: Codable {
 struct AIAnalysisResult: Codable {
     let title: String
     let summary: String
-    let type: String // "Toplantı", "Görev", "Fikir" vb.
-    let priority: String // "Yüksek", "Orta", "Düşük"
+    let type: String
+    let priority: String
     let event_date: String?
+    
+    let email_subject: String?
+    let email_body: String?
 }
