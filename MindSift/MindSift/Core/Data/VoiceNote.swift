@@ -9,12 +9,12 @@ import Foundation
 import SwiftData
 
 enum NoteType: String, Codable, CaseIterable {
-    case meeting = "Toplantı" // Takvim aksiyonu
-    case task = "Görev"       // Checklist aksiyonu
-    case email = "E-posta"    // Mail aksiyonu (YENİ)
-    case idea = "Fikir"       // Sadece Kayıt
-    case diary = "Günlük"     // Sadece Kayıt (San Francisco örneği)
-    case travel = "Seyahat"   // Sadece Kayıt (YENİ)
+    case meeting = "Toplantı"
+    case task = "Görev"
+    case email = "E-posta"
+    case idea = "Fikir"
+    case diary = "Günlük"
+    case travel = "Seyahat"
     case unclassified = "Genel"
     
     var iconName: String {
@@ -24,7 +24,7 @@ enum NoteType: String, Codable, CaseIterable {
         case .email: return "envelope.fill"
         case .idea: return "lightbulb"
         case .diary: return "book.closed"
-        case .travel: return "airplane.departure" // Seyahat için özel ikon
+        case .travel: return "airplane.departure"
         case .unclassified: return "recordingtape"
         }
     }
@@ -43,6 +43,9 @@ final class VoiceNote {
     var emailSubject: String?
     var emailBody: String?
     
+    var smartIcon: String?
+    var smartColor: String?
+    
     var createdAt: Date
     var type: NoteType
     var isProcessed: Bool
@@ -56,6 +59,8 @@ final class VoiceNote {
          eventDate: Date? = nil,
          emailSubject: String? = nil,
          emailBody: String? = nil,
+         smartIcon: String? = nil,
+         smartColor: String? = nil,
          createdAt: Date = Date(),
          type: NoteType = .unclassified,
          isProcessed: Bool = false) {
@@ -69,6 +74,8 @@ final class VoiceNote {
         self.eventDate = eventDate
         self.emailSubject = emailSubject
         self.emailBody = emailBody
+        self.smartIcon = smartIcon
+        self.smartColor = smartColor
         self.createdAt = createdAt
         self.type = type
         self.isProcessed = isProcessed

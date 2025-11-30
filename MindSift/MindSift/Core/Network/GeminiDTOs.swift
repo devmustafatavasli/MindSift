@@ -35,14 +35,15 @@ struct GeminiCandidate: Codable {
     let finishReason: String?
 }
 
-// MARK: - Bizim Uygulamanın Kullanacağı Sonuç Modeli
 struct AIAnalysisResult: Codable {
     let title: String
     let summary: String
     let type: String
     let priority: String
     let event_date: String?
-    
     let email_subject: String?
     let email_body: String?
+    
+    let suggested_icon: String?
+    let suggested_color: String?
 }

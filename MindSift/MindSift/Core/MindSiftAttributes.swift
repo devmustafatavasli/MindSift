@@ -10,11 +10,11 @@ import SwiftUI
 
 struct MindSiftAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
-        // Canlı güncellenecek veriler
-        var status: String // "Dinliyor...", "Düşünüyor...", "Kaydedildi"
-        var timer: Date    // Kayıt başlangıç zamanı
+        // Dinleme - Düşünme - Kaydetme Aşamaları
+        var status: String
+        // Kayıt Zaman Sayacı
+        var timer: Date
     }
-
-    // Sabit veriler (Aktivite başladığında bir kere belirlenir)
+    // Aktivitenin Adlandırması
     var activityName: String
 }

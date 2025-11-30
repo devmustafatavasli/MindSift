@@ -7,7 +7,7 @@
 
 import Foundation
 import AVFoundation
-import ActivityKit // <-- YENİ: Ada için gerekli
+import ActivityKit
 import Combine
 
 class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
@@ -34,6 +34,7 @@ class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
                 .setCategory(
                     .playAndRecord,
                     mode: .default,
+                    // allowBluetooth deprecated sorununa MVP sonrası çözüm bulunacak.
                     options: [.defaultToSpeaker, .allowBluetooth]
                 )
             try audioSession.setActive(true)
@@ -55,7 +56,6 @@ class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
             DispatchQueue.main.async {
                 self.isRecording = true
                 self.errorMessage = nil
-                // 👇 YENİ: Kayıt başlayınca adayı başlat
                 self.startLiveActivity()
             }
             print("🎙️ Kayıt başladı: \(url.lastPathComponent)")
@@ -73,7 +73,6 @@ class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
         DispatchQueue.main.async {
             self.isRecording = false
             self.audioURL = self.audioRecorder?.url
-            // 👇 YENİ: Kayıt bitince adayı kapat
             self.stopLiveActivity()
         }
         print("🛑 Kayıt durdu.")

@@ -12,33 +12,53 @@ struct NoteDetailView: View {
     let note: VoiceNote
     @Environment(\.dismiss) var dismiss
     @State private var showShareSheet = false
-    
-    // 👇 YENİ: Hata mesajı için durumlar
     @State private var showAlert = false
     @State private var alertMessage = ""
+    
+    // Akıllı Renk Belirleme
+    var accentColor: Color {
+        if let hex = note.smartColor {
+            return Color(hex: hex)
+        }
+        return .blue // Varsayılan
+    }
+    
+    // Akıllı İkon Belirleme
+    var iconName: String {
+        note.smartIcon ?? note.type.iconName
+    }
     
     var body: some View {
         ZStack {
             // Arka Plan
-            DesignSystem.backgroundGradient.ignoresSafeArea()
+            DesignSystem.Gradients.primaryAction
+                .opacity(0.05)
+                .ignoresSafeArea()
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     
                     // 1. BAŞLIK ALANI
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: note.type.iconName)
-                                .foregroundStyle(.blue)
-                                .font(.title2)
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 12) {
+                            // Büyük İkon
+                            ZStack {
+                                Circle()
+                                    .fill(accentColor.opacity(0.1))
+                                    .frame(width: 50, height: 50)
+                                Image(systemName: iconName)
+                                    .foregroundStyle(accentColor)
+                                    .font(.title2)
+                            }
                             
+                            // Tip Etiketi
                             Text(note.type.rawValue)
                                 .font(.caption)
                                 .fontWeight(.bold)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.blue.opacity(0.1))
-                                .foregroundStyle(.blue)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(accentColor.opacity(0.1))
+                                .foregroundStyle(accentColor)
                                 .clipShape(Capsule())
                         }
                         
@@ -56,7 +76,7 @@ struct NoteDetailView: View {
                     }
                     .padding(.top, 20)
                     
-                    // 2. MAİL AKSİYON KARTI
+                    // 2. MAİL AKSİYON KARTI (E-posta ise)
                     if note.type == .email, let subject = note.emailSubject, let body = note.emailBody {
                         VStack(alignment: .leading, spacing: 16) {
                             Label(
@@ -100,21 +120,27 @@ struct NoteDetailView: View {
                                 .fontWeight(.bold)
                                 .padding()
                                 .background(Color.white)
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(
+                                    accentColor
+                                ) // Buton rengi dinamik
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
                         }
                         .padding()
                         .background(
                             LinearGradient(
-                                colors: [Color.blue, Color.purple],
+                                colors: [
+                                    accentColor,
+                                    accentColor.opacity(0.6)
+                                ],
+                                // Kart rengi dinamik
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 20))
                         .shadow(
-                            color: .blue.opacity(0.3),
+                            color: accentColor.opacity(0.3),
                             radius: 10,
                             x: 0,
                             y: 5
@@ -126,7 +152,7 @@ struct NoteDetailView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Label("AI Özeti", systemImage: "sparkles")
                                 .font(.headline)
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(accentColor)
                             
                             Text(summary)
                                 .font(.body)
@@ -139,7 +165,7 @@ struct NoteDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16)
-                                .stroke(.purple.opacity(0.1), lineWidth: 1)
+                                .stroke(accentColor.opacity(0.2), lineWidth: 1)
                         )
                     }
                     
@@ -172,14 +198,13 @@ struct NoteDetailView: View {
                     showShareSheet = true
                 } label: {
                     Image(systemName: "square.and.arrow.up")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(accentColor)
                 }
             }
         }
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: [generateShareText()])
         }
-        // 👇 YENİ: Hata Alert'i
         .alert("Bilgi", isPresented: $showAlert) {
             Button("Tamam", role: .cancel) { }
         } message: {
@@ -187,7 +212,7 @@ struct NoteDetailView: View {
         }
     }
     
-    // 👇 GÜNCELLENMİŞ FONKSİYON: Hata Yönetimi Ekli
+    // ... (Mail açma ve Share fonksiyonları AYNI KALACAK)
     private func openMailApp(subject: String, body: String) {
         let encodedSubject = subject.addingPercentEncoding(
             withAllowedCharacters: .urlQueryAllowed
@@ -202,7 +227,6 @@ struct NoteDetailView: View {
             if UIApplication.shared.canOpenURL(url) {
                 UIApplication.shared.open(url)
             } else {
-                // Mail uygulaması yoksa (Simülatör durumu)
                 UIPasteboard.general.string = "Konu: \(subject)\n\n\(body)"
                 alertMessage = "Mail uygulaması bulunamadı. İçerik panoya kopyalandı."
                 showAlert = true
@@ -224,16 +248,15 @@ struct NoteDetailView: View {
     }
 }
 
+// ShareSheet yapısı aynı
 struct ShareSheet: UIViewControllerRepresentable {
     var items: [Any]
-    
     func makeUIViewController(context: Context) -> UIActivityViewController {
         UIActivityViewController(
             activityItems: items,
             applicationActivities: nil
         )
     }
-    
     func updateUIViewController(
         _ uiViewController: UIActivityViewController,
         context: Context

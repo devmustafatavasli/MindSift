@@ -10,30 +10,23 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
-    // Tüm notları çekiyoruz (Filtrelemeyi memory'de yapacağız, MVP için en akıcı yöntem)
     @Query(sort: \VoiceNote.createdAt, order: .reverse) private var allNotes: [VoiceNote]
     
-    // Yöneticiler
     @StateObject private var audioManager = AudioManager()
     @StateObject private var speechManager = SpeechManager()
     @StateObject private var calendarManager = CalendarManager()
+    
     private let geminiService = GeminiService()
     
-    // UI Durumları
     @State private var isAnalyzing = false
     @State private var showSettings = false
     
-    // 🔍 ARAMA VE FİLTRE DURUMLARI
     @State private var searchText = ""
-    @State private var selectedType: NoteType? = nil // nil = Hepsi
+    @State private var selectedType: NoteType? = nil
     
-    // 🧠 FİLTRELENMİŞ LİSTE (Computed Property)
     var filteredNotes: [VoiceNote] {
         allNotes.filter { note in
-            // 1. Kategori Filtresi
             let typeMatch = (selectedType == nil) || (note.type == selectedType)
-            
-            // 2. Metin Araması (Başlık, Özet veya İçerik)
             let textMatch = searchText.isEmpty ||
             (note.title?.localizedCaseInsensitiveContains(searchText) ?? false) ||
             (note.summary?.localizedCaseInsensitiveContains(searchText) ?? false) ||
@@ -41,7 +34,6 @@ struct HomeView: View {
                 note.transcription?
                     .localizedCaseInsensitiveContains(searchText) ?? false
             )
-            
             return typeMatch && textMatch
         }
     }
@@ -49,27 +41,24 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                // 1. ARKA PLAN
-                DesignSystem.backgroundGradient.ignoresSafeArea()
+                MeshBackground()
+                    .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    // 2. ARAMA VE FİLTRE ALANI (YENİ)
                     headerSection
                         .padding(.bottom, 10)
                     
-                    // 3. İÇERİK
                     if filteredNotes.isEmpty {
                         if !searchText.isEmpty || selectedType != nil {
-                            noResultsView // Arama sonucu boşsa
+                            noResultsView
                         } else {
-                            emptyStateView // Hiç not yoksa
+                            emptyStateView
                         }
                     } else {
                         notesScrollView
                     }
                 }
                 
-                // 4. YÜZEN KAYIT PANELİ
                 floatingRecordingBar
                     .padding(.bottom, 20)
             }
@@ -77,9 +66,7 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
+                    Button { showSettings = true } label: {
                         Image(systemName: "gearshape.fill")
                             .foregroundStyle(.primary)
                             .padding(8)
@@ -101,22 +88,17 @@ struct HomeView: View {
         }
     }
     
-    // MARK: - UI Bileşenleri
+    // MARK: - UI BİLEŞENLERİ
     
-    // 👇 YENİ: Üst Kısım (Arama + Filtreler)
     private var headerSection: some View {
         VStack(spacing: 12) {
-            // Arama Çubuğu
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
                 TextField("Notlarda ara...", text: $searchText)
                     .textFieldStyle(.plain)
-                
                 if !searchText.isEmpty {
-                    Button {
-                        withAnimation { searchText = "" }
-                    } label: {
+                    Button { withAnimation { searchText = "" } } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
                     }
@@ -127,15 +109,11 @@ struct HomeView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal)
             
-            // Kategori Filtreleri (Yatay Kaydırma)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    // "Tümü" Butonu
                     FilterChip(title: "Tümü", isSelected: selectedType == nil) {
                         withAnimation { selectedType = nil }
                     }
-                    
-                    // Diğer Kategoriler
                     ForEach(NoteType.allCases, id: \.self) { type in
                         FilterChip(
                             title: type.rawValue,
@@ -149,9 +127,6 @@ struct HomeView: View {
             }
         }
         .padding(.bottom, 8)
-        .background(
-            DesignSystem.backgroundGradient.opacity(0.9)
-        ) // Hafif background
     }
     
     private var emptyStateView: some View {
@@ -163,16 +138,17 @@ struct HomeView: View {
                     .frame(width: 120, height: 120)
                 Image(systemName: "mic.fill")
                     .font(.system(size: 50))
-                    .foregroundStyle(DesignSystem.primaryGradient)
+                    .foregroundStyle(DesignSystem.Gradients.primaryAction)
             }
-            
             VStack(spacing: 8) {
                 Text("Zihnin Çok mu Dolu?")
-                    .font(.system(.title2, design: .rounded, weight: .bold))
+                    .font(DesignSystem.Typography.titleLarge())
+                    .scaleEffect(0.8)
+                    .foregroundStyle(.primary)
                 Text(
                     "Mikrofona dokun ve aklındakileri boşalt.\nMindSift gerisini halleder."
                 )
-                .font(.body)
+                .font(DesignSystem.Typography.body())
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 40)
@@ -182,14 +158,14 @@ struct HomeView: View {
         }
     }
     
-    // Arama sonucu bulunamazsa
     private var noResultsView: some View {
         VStack(spacing: 16) {
             Spacer()
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 40))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondary.opacity(0.5))
             Text("Sonuç bulunamadı.")
+                .font(DesignSystem.Typography.body())
                 .foregroundStyle(.secondary)
             Spacer()
             Spacer()
@@ -199,16 +175,13 @@ struct HomeView: View {
     private var notesScrollView: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
-                // Filtrelenmiş listeyi kullanıyoruz
                 ForEach(filteredNotes) { note in
                     NavigationLink(destination: NoteDetailView(note: note)) {
                         VoiceNoteCard(note: note)
                     }
                     .buttonStyle(PlainButtonStyle())
                     .contextMenu {
-                        Button(role: .destructive) {
-                            deleteNote(note)
-                        } label: {
+                        Button(role: .destructive) { deleteNote(note) } label: {
                             Label("Sil", systemImage: "trash")
                         }
                     }
@@ -219,21 +192,22 @@ struct HomeView: View {
         }
     }
     
+    // 👇 GÜNCELLENMİŞ VE DÜZELTİLMİŞ KAYIT BUTONU
     private var floatingRecordingBar: some View {
         HStack {
             if audioManager.isRecording {
-                Label("Dinliyorum...", systemImage: "waveform")
+                Label("Kaydediliyor...", systemImage: "waveform")
                     .foregroundStyle(.white)
-                    .font(.system(.headline, design: .rounded))
+                    .font(DesignSystem.Typography.headline())
                     .transition(.move(edge: .leading).combined(with: .opacity))
             } else if isAnalyzing {
-                Label("AI Düşünüyor...", systemImage: "sparkles")
+                Label("Süzülüyor...", systemImage: "sparkles")
                     .foregroundStyle(.white)
-                    .font(.system(.headline, design: .rounded))
+                    .font(DesignSystem.Typography.headline())
             } else {
-                Text("Dokun ve Kaydet")
-                    .foregroundStyle(AnyShapeStyle(DesignSystem.primaryGradient).opacity(0.8))
-                    .font(.system(.subheadline, design: .rounded))
+                Text("Düşünceni Kaydet")
+                    .foregroundStyle(.white.opacity(0.9))
+                    .font(DesignSystem.Typography.headline())
             }
             
             Spacer()
@@ -248,87 +222,75 @@ struct HomeView: View {
                 }
             } label: {
                 ZStack {
+                    // 1. BLOB ANIMASYONU (Artık Renkli ve Görünür)
                     if audioManager.isRecording {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.white)
-                            .frame(width: 24, height: 24)
-                    } else if isAnalyzing {
+                        PulsingBlob()
+                    }
+                    
+                    // 2. ANA BUTON GÖVDESİ
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 60, height: 60)
+                        .shadow(
+                            color: DesignSystem.Effects.shadowMedium,
+                            radius: 8,
+                            x: 0,
+                            y: 4
+                        )
+                    
+                    // 3. İKON
+                    if isAnalyzing {
                         ProgressView()
-                            .tint(.white)
+                            .tint(DesignSystem.Colors.primaryPurple)
                     } else {
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: 24, height: 24)
+                        Image(
+                            systemName: audioManager.isRecording ? "stop.fill" : "mic.fill"
+                        )
+                        .font(.title2)
+                        .foregroundStyle(
+                            audioManager.isRecording ?
+                            DesignSystem.Gradients.recordingAction :
+                                DesignSystem.Gradients.primaryAction
+                        )
                     }
                 }
-                .frame(width: 56, height: 56)
-                .background(
-                    audioManager.isRecording ? AnyShapeStyle(Color.red) : AnyShapeStyle(
-                        DesignSystem.primaryGradient
-                    )
-                )
-                .clipShape(Circle())
-                .shadow(color: .blue.opacity(0.3), radius: 10, x: 0, y: 5)
             }
             .disabled(isAnalyzing)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
-        .background {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
-        }
+        .liquidGlass(cornerRadius: 40)
         .padding(.horizontal)
-        .scaleEffect(audioManager.isRecording ? 1.05 : 1.0)
+        .scaleEffect(audioManager.isRecording ? 1.02 : 1.0)
     }
-    
-    // MARK: - Mantık
     
     private func processAudio(url: URL) {
         speechManager.transcribeAudio(url: url) { text in
             guard let text = text, !text.isEmpty else { return }
-            
             withAnimation { isAnalyzing = true }
             
             geminiService.analyzeText(text: text) { result in
                 DispatchQueue.main.async {
                     withAnimation { isAnalyzing = false }
-                    
                     switch result {
                     case .success(let analysis):
                         let type = NoteType(
                             rawValue: analysis.type
                         ) ?? .unclassified
-                        
                         var eventDate: Date? = nil
+                        
                         if let dateString = analysis.event_date {
-                            // Tarih formatlama mantığı (öncekiyle aynı)
                             let isoFormatter = ISO8601DateFormatter()
                             isoFormatter.formatOptions = [
                                 .withInternetDateTime,
                                 .withFractionalSeconds
                             ]
                             eventDate = isoFormatter.date(from: dateString)
-                            
                             if eventDate == nil {
-                                let formatter = DateFormatter()
-                                formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-                                formatter.locale = Locale(
+                                let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"; f.locale = Locale(
                                     identifier: "en_US_POSIX"
                                 )
-                                eventDate = formatter.date(from: dateString)
-                            }
-                            
-                            // Yedek formatlar
-                            if eventDate == nil {
-                                let formatter = DateFormatter()
-                                formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                                formatter.locale = Locale(
-                                    identifier: "en_US_POSIX"
-                                )
-                                eventDate = formatter.date(from: dateString)
+                                eventDate = f.date(from: dateString)
                             }
                         }
                         
@@ -362,7 +324,7 @@ struct HomeView: View {
                         let newNote = VoiceNote(
                             audioFileName: url.lastPathComponent,
                             transcription: text,
-                            title: "Hata: Not Analiz Edilemedi",
+                            title: "Hata",
                             type: .unclassified
                         )
                         modelContext.insert(newNote)
@@ -373,21 +335,34 @@ struct HomeView: View {
     }
     
     private func deleteNote(_ note: VoiceNote) {
-        withAnimation {
-            modelContext.delete(note)
-        }
-    }
-    
-    private func deleteNotes(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(filteredNotes[index])
-            }
-        }
+        withAnimation { modelContext.delete(note) }
     }
 }
 
-// MARK: - YARDIMCI VIEW (Filtre Butonu)
+// MARK: - YARDIMCI GÖRÜNÜMLER
+
+// 👇 YENİLENMİŞ PULSING BLOB
+struct PulsingBlob: View {
+    @State private var animate = false
+    
+    var body: some View {
+        Circle()
+        // Beyaz yerine Kayıt Gradyanı kullanıyoruz, böylece "Glow" etkisi oluşuyor
+            .fill(DesignSystem.Gradients.recordingAction)
+            .frame(width: 60, height: 60) // Butonla aynı boyutta başla
+            .scaleEffect(animate ? 2.0 : 1.0) // 2 katına kadar büyüt
+            .opacity(animate ? 0.0 : 0.5) // Giderek kaybol
+            .onAppear {
+                animate = false // Sıfırla
+                withAnimation(
+                    .easeOut(duration: 1.5).repeatForever(autoreverses: false)
+                ) {
+                    animate = true
+                }
+            }
+    }
+}
+
 struct FilterChip: View {
     let title: String
     let isSelected: Bool
@@ -396,17 +371,20 @@ struct FilterChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(.subheadline, design: .rounded))
+                .font(DesignSystem.Typography.subheadline())
                 .fontWeight(.medium)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(isSelected ? Color.blue : Color.gray.opacity(0.1))
+                .background(
+                    isSelected ? DesignSystem.Colors.primaryBlue : Color.white
+                        .opacity(0.5)
+                )
                 .foregroundStyle(isSelected ? .white : .primary)
                 .clipShape(Capsule())
                 .overlay(
                     Capsule()
                         .stroke(
-                            isSelected ? Color.clear : Color.gray.opacity(0.2),
+                            isSelected ? Color.clear : Color.black.opacity(0.1),
                             lineWidth: 1
                         )
                 )

@@ -19,7 +19,7 @@ struct OnboardingView: View {
     var body: some View {
         ZStack {
             // Arka Plan
-            DesignSystem.primaryGradient
+            DesignSystem.Gradients.primaryAction
                 .opacity(0.1)
                 .ignoresSafeArea()
             
@@ -29,7 +29,7 @@ struct OnboardingView: View {
                 // İkon ve Başlık
                 Image(systemName: "waveform.circle.fill")
                     .font(.system(size: 100))
-                    .foregroundStyle(DesignSystem.primaryGradient)
+                    .foregroundStyle(DesignSystem.Gradients.primaryAction)
                     .shadow(radius: 10)
                 
                 VStack(spacing: 12) {
