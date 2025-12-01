@@ -74,12 +74,20 @@
 			);
 			target = BC12FF2F2ED4C87600396CA8 /* MindSiftWidgetExtension */;
 		};
+		BC12FF652EDD994B00396CA8 /* Exceptions for "MindSift" folder in "MindSift" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = BC12FEE12ED3A97400396CA8 /* MindSift */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BC12FEE42ED3A97400396CA8 /* MindSift */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				BC12FF652EDD994B00396CA8 /* Exceptions for "MindSift" folder in "MindSift" target */,
 				BC12FF4D2ED4C8C300396CA8 /* Exceptions for "MindSift" folder in "MindSiftWidgetExtension" target */,
 			);
 			path = MindSift;
@@ -524,6 +532,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MindSift/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "MindSift, toplantılarınızı ve görevlerinizi takviminize otomatik eklemek için erişim izni ister.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "MindSift, toplantılarınızı ve görevlerinizi takviminize otomatik eklemek için erişim izni ister.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MindSift, sesli notlarınızı alıp analiz edebilmek için mikrofonunuza erişmelidir.";
@@ -561,6 +570,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MindSift/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "MindSift, toplantılarınızı ve görevlerinizi takviminize otomatik eklemek için erişim izni ister.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "MindSift, toplantılarınızı ve görevlerinizi takviminize otomatik eklemek için erişim izni ister.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MindSift, sesli notlarınızı alıp analiz edebilmek için mikrofonunuza erişmelidir.";

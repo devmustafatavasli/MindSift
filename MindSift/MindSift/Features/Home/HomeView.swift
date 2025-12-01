@@ -98,6 +98,10 @@ struct HomeView: View {
             audioManager.checkPermissions()
             speechManager.checkPermissions()
         }
+        // 👇 YENİ: URL ŞEMASI İLE TETİKLEME
+        .onOpenURL { url in
+            handleDeepLink(url: url)
+        }
     }
     
     // MARK: - UI BİLEŞENLERİ
@@ -272,6 +276,25 @@ struct HomeView: View {
         .liquidGlass(cornerRadius: 40)
         .padding(.horizontal)
         .scaleEffect(audioManager.isRecording ? 1.02 : 1.0)
+    }
+    
+    // MARK: - MANTIK
+        
+    // 👇 YENİ: Deep Link İşleyicisi
+    private func handleDeepLink(url: URL) {
+        // Şema kontrolü: mindsift://record
+        if url.scheme == "mindsift" && url.host == "record" {
+            print("🚀 Kestirme algılandı: Kayıt Başlatılıyor...")
+                
+            // UI'ın tamamen yüklenmesi için minik bir gecikme
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if !audioManager.isRecording {
+                    withAnimation {
+                        audioManager.startRecording()
+                    }
+                }
+            }
+        }
     }
     
     private func processAudio(url: URL) {
