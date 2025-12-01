@@ -5,7 +5,6 @@
 //  Created by Mustafa TAVASLI on 25.11.2025.
 //
 
-
 import SwiftUI
 
 struct NoteDetailView: View {
@@ -15,22 +14,21 @@ struct NoteDetailView: View {
     @State private var showAlert = false
     @State private var alertMessage = ""
     
-    // Akıllı Renk Belirleme
+    // 👇 YENİ: Ses Oynatıcı Yöneticisi
+    @StateObject private var playerManager = AudioPlayerManager()
+    
+    // Akıllı Renk
     var accentColor: Color {
-        if let hex = note.smartColor {
-            return Color(hex: hex)
-        }
-        return .blue // Varsayılan
+        if let hex = note.smartColor { return Color(hex: hex) }
+        return .blue
     }
     
-    // Akıllı İkon Belirleme
-    var iconName: String {
-        note.smartIcon ?? note.type.iconName
-    }
+    // Akıllı İkon
+    var iconName: String { note.smartIcon ?? note.type.iconName }
     
     var body: some View {
         ZStack {
-            // Arka Plan
+            // Arka Plan (Hafif tema rengiyle)
             DesignSystem.Gradients.primaryAction
                 .opacity(0.05)
                 .ignoresSafeArea()
@@ -41,7 +39,6 @@ struct NoteDetailView: View {
                     // 1. BAŞLIK ALANI
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 12) {
-                            // Büyük İkon
                             ZStack {
                                 Circle()
                                     .fill(accentColor.opacity(0.1))
@@ -51,7 +48,6 @@ struct NoteDetailView: View {
                                     .font(.title2)
                             }
                             
-                            // Tip Etiketi
                             Text(note.type.rawValue)
                                 .font(.caption)
                                 .fontWeight(.bold)
@@ -76,7 +72,53 @@ struct NoteDetailView: View {
                     }
                     .padding(.top, 20)
                     
-                    // 2. MAİL AKSİYON KARTI (E-posta ise)
+                    // 👇 YENİ: SES OYNATICI KARTI
+                    VStack(spacing: 12) {
+                        HStack {
+                            // Play/Pause Butonu
+                            Button {
+                                playerManager.playPause()
+                            } label: {
+                                Image(
+                                    systemName: playerManager.isPlaying ? "pause.circle.fill" : "play.circle.fill"
+                                )
+                                .font(.system(size: 44))
+                                .foregroundStyle(accentColor)
+                                .background(
+                                    Circle().fill(.white).padding(4)
+                                ) // Arka plan temizliği
+                                .shadow(radius: 2)
+                            }
+                            
+                            VStack(spacing: 4) {
+                                // Slider (İlerleme Çubuğu)
+                                Slider(value: Binding(
+                                    get: { playerManager.currentTime },
+                                    set: { playerManager.seek(to: $0) }
+                                ), in: 0...playerManager.duration)
+                                .tint(accentColor)
+                                
+                                // Süreler (00:00 / 01:25)
+                                HStack {
+                                    Text(formatTime(playerManager.currentTime))
+                                    Spacer()
+                                    Text(formatTime(playerManager.duration))
+                                }
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(accentColor.opacity(0.2), lineWidth: 1)
+                    )
+                    
+                    // 2. MAİL AKSİYON KARTI (Varsa)
                     if note.type == .email, let subject = note.emailSubject, let body = note.emailBody {
                         VStack(alignment: .leading, spacing: 16) {
                             Label(
@@ -94,9 +136,7 @@ struct NoteDetailView: View {
                                 Text(subject)
                                     .fontWeight(.semibold)
                                     .foregroundStyle(.white)
-                                
                                 Divider().overlay(.white.opacity(0.3))
-                                
                                 Text("İÇERİK")
                                     .font(.caption)
                                     .fontWeight(.bold)
@@ -107,9 +147,7 @@ struct NoteDetailView: View {
                                     .lineLimit(4)
                             }
                             
-                            Button {
-                                openMailApp(subject: subject, body: body)
-                            } label: {
+                            Button { openMailApp(subject: subject, body: body) } label: {
                                 HStack {
                                     Text("Mail Uygulamasında Aç")
                                     Spacer()
@@ -120,20 +158,14 @@ struct NoteDetailView: View {
                                 .fontWeight(.bold)
                                 .padding()
                                 .background(Color.white)
-                                .foregroundStyle(
-                                    accentColor
-                                ) // Buton rengi dinamik
+                                .foregroundStyle(accentColor)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
                         }
                         .padding()
                         .background(
                             LinearGradient(
-                                colors: [
-                                    accentColor,
-                                    accentColor.opacity(0.6)
-                                ],
-                                // Kart rengi dinamik
+                                colors: [accentColor, accentColor.opacity(0.6)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -147,13 +179,11 @@ struct NoteDetailView: View {
                         )
                     }
                     
-                    // 3. AI ÖZET KARTI
+                    // 3. AI ÖZET
                     if let summary = note.summary {
                         VStack(alignment: .leading, spacing: 12) {
                             Label("AI Özeti", systemImage: "sparkles")
-                                .font(.headline)
-                                .foregroundStyle(accentColor)
-                            
+                                .font(.headline).foregroundStyle(accentColor)
                             Text(summary)
                                 .font(.body)
                                 .foregroundStyle(.primary.opacity(0.9))
@@ -169,12 +199,11 @@ struct NoteDetailView: View {
                         )
                     }
                     
-                    // 4. TAM METİN
+                    // 4. TRANSKRİPT
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Transkript", systemImage: "text.alignleft")
                             .font(.headline)
                             .foregroundStyle(.gray)
-                        
                         Text(note.transcription ?? "Ses çözülemedi.")
                             .font(.body)
                             .foregroundStyle(.primary)
@@ -194,9 +223,7 @@ struct NoteDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showShareSheet = true
-                } label: {
+                Button { showShareSheet = true } label: {
                     Image(systemName: "square.and.arrow.up")
                         .foregroundStyle(accentColor)
                 }
@@ -210,9 +237,23 @@ struct NoteDetailView: View {
         } message: {
             Text(alertMessage)
         }
+        // 👇 Sayfa açılınca player'ı hazırla
+        .onAppear {
+            playerManager.setupPlayer(audioFileName: note.audioFileName)
+        }
+        // 👇 Sayfadan çıkınca durdur
+        .onDisappear {
+            playerManager.playPause() // Çalıyorsa durdurur
+        }
     }
     
-    // ... (Mail açma ve Share fonksiyonları AYNI KALACAK)
+    // Süre Formatlayıcı
+    private func formatTime(_ time: TimeInterval) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
     private func openMailApp(subject: String, body: String) {
         let encodedSubject = subject.addingPercentEncoding(
             withAllowedCharacters: .urlQueryAllowed
@@ -220,13 +261,12 @@ struct NoteDetailView: View {
         let encodedBody = body.addingPercentEncoding(
             withAllowedCharacters: .urlQueryAllowed
         ) ?? ""
-        
         if let url = URL(
             string: "mailto:?subject=\(encodedSubject)&body=\(encodedBody)"
         ) {
-            if UIApplication.shared.canOpenURL(url) {
-                UIApplication.shared.open(url)
-            } else {
+            if UIApplication.shared
+                .canOpenURL(url) { UIApplication.shared.open(url) }
+            else {
                 UIPasteboard.general.string = "Konu: \(subject)\n\n\(body)"
                 alertMessage = "Mail uygulaması bulunamadı. İçerik panoya kopyalandı."
                 showAlert = true
@@ -237,18 +277,14 @@ struct NoteDetailView: View {
     private func generateShareText() -> String {
         """
         📄 \(note.title ?? "Sesli Not")
-        
         ✨ Özet: \(note.summary ?? "")
-        
         📝 İçerik:
         \(note.transcription ?? "")
-        
         🤖 MindSift ile oluşturuldu.
         """
     }
 }
 
-// ShareSheet yapısı aynı
 struct ShareSheet: UIViewControllerRepresentable {
     var items: [Any]
     func makeUIViewController(context: Context) -> UIActivityViewController {
