@@ -21,8 +21,12 @@ struct HomeView: View {
     @State private var isAnalyzing = false
     @State private var showSettings = false
     
+    // Arama ve Filtre
     @State private var searchText = ""
     @State private var selectedType: NoteType? = nil
+    
+    // 👇 YENİ: Harita Modu için Sheet Kontrolü
+    @State private var showMindMap = false
     
     var filteredNotes: [VoiceNote] {
         allNotes.filter { note in
@@ -41,13 +45,16 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
+                // 1. ARKA PLAN
                 MeshBackground()
                     .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
+                    // 2. ÜST KISIM
                     headerSection
                         .padding(.bottom, 10)
                     
+                    // 3. İÇERİK LİSTESİ (Sadece Liste Görünümü)
                     if filteredNotes.isEmpty {
                         if !searchText.isEmpty || selectedType != nil {
                             noResultsView
@@ -59,6 +66,7 @@ struct HomeView: View {
                     }
                 }
                 
+                // 4. YÜZEN KAYIT PANELİ
                 floatingRecordingBar
                     .padding(.bottom, 20)
             }
@@ -76,6 +84,10 @@ struct HomeView: View {
                 }
             }
         }
+        // 👇 YENİ: Mind Map Tam Ekran Açılır
+        .fullScreenCover(isPresented: $showMindMap) {
+            MindMapSheetView(notes: filteredNotes)
+        }
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
@@ -92,23 +104,39 @@ struct HomeView: View {
     
     private var headerSection: some View {
         VStack(spacing: 12) {
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Notlarda ara...", text: $searchText)
-                    .textFieldStyle(.plain)
-                if !searchText.isEmpty {
-                    Button { withAnimation { searchText = "" } } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                // Arama Kutusu
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Notlarda ara...", text: $searchText)
+                        .textFieldStyle(.plain)
+                    if !searchText.isEmpty {
+                        Button { withAnimation { searchText = "" } } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
+                .padding(10)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                
+                // 👇 YENİ: Harita Açma Butonu
+                Button {
+                    showMindMap = true
+                } label: {
+                    Image(systemName: "network") // Zihin haritası ikonu
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
             }
-            .padding(10)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal)
             
+            // Filtreler
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     FilterChip(title: "Tümü", isSelected: selectedType == nil) {
@@ -153,8 +181,7 @@ struct HomeView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 40)
             }
-            Spacer()
-            Spacer()
+            Spacer(); Spacer()
         }
     }
     
@@ -167,8 +194,7 @@ struct HomeView: View {
             Text("Sonuç bulunamadı.")
                 .font(DesignSystem.Typography.body())
                 .foregroundStyle(.secondary)
-            Spacer()
-            Spacer()
+            Spacer(); Spacer()
         }
     }
     
@@ -187,12 +213,10 @@ struct HomeView: View {
                     }
                 }
             }
-            .padding()
-            .padding(.bottom, 100)
+            .padding().padding(.bottom, 100)
         }
     }
     
-    // 👇 GÜNCELLENMİŞ VE DÜZELTİLMİŞ KAYIT BUTONU
     private var floatingRecordingBar: some View {
         HStack {
             if audioManager.isRecording {
@@ -209,25 +233,16 @@ struct HomeView: View {
                     .foregroundStyle(.white.opacity(0.9))
                     .font(DesignSystem.Typography.headline())
             }
-            
             Spacer()
-            
             Button {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                    if audioManager.isRecording {
-                        audioManager.stopRecording()
-                    } else {
+                    if audioManager.isRecording { audioManager.stopRecording() } else {
                         audioManager.startRecording()
                     }
                 }
             } label: {
                 ZStack {
-                    // 1. BLOB ANIMASYONU (Artık Renkli ve Görünür)
-                    if audioManager.isRecording {
-                        PulsingBlob()
-                    }
-                    
-                    // 2. ANA BUTON GÖVDESİ
+                    if audioManager.isRecording { PulsingBlob() }
                     Circle()
                         .fill(Color.white)
                         .frame(width: 60, height: 60)
@@ -237,20 +252,15 @@ struct HomeView: View {
                             x: 0,
                             y: 4
                         )
-                    
-                    // 3. İKON
                     if isAnalyzing {
-                        ProgressView()
-                            .tint(DesignSystem.Colors.primaryPurple)
+                        ProgressView().tint(DesignSystem.Colors.primaryPurple)
                     } else {
                         Image(
                             systemName: audioManager.isRecording ? "stop.fill" : "mic.fill"
                         )
                         .font(.title2)
                         .foregroundStyle(
-                            audioManager.isRecording ?
-                            DesignSystem.Gradients.recordingAction :
-                                DesignSystem.Gradients.primaryAction
+                            audioManager.isRecording ? DesignSystem.Gradients.recordingAction : DesignSystem.Gradients.primaryAction
                         )
                     }
                 }
@@ -268,7 +278,6 @@ struct HomeView: View {
         speechManager.transcribeAudio(url: url) { text in
             guard let text = text, !text.isEmpty else { return }
             withAnimation { isAnalyzing = true }
-            
             geminiService.analyzeText(text: text) { result in
                 DispatchQueue.main.async {
                     withAnimation { isAnalyzing = false }
@@ -278,7 +287,6 @@ struct HomeView: View {
                             rawValue: analysis.type
                         ) ?? .unclassified
                         var eventDate: Date? = nil
-                        
                         if let dateString = analysis.event_date {
                             let isoFormatter = ISO8601DateFormatter()
                             isoFormatter.formatOptions = [
@@ -293,7 +301,6 @@ struct HomeView: View {
                                 eventDate = f.date(from: dateString)
                             }
                         }
-                        
                         if let date = eventDate, (
                             type == .meeting || type == .task
                         ) {
@@ -304,7 +311,6 @@ struct HomeView: View {
                                     notes: analysis.summary
                                 )
                         }
-                        
                         let newNote = VoiceNote(
                             audioFileName: url.lastPathComponent,
                             transcription: text,
@@ -314,11 +320,12 @@ struct HomeView: View {
                             eventDate: eventDate,
                             emailSubject: analysis.email_subject,
                             emailBody: analysis.email_body,
+                            smartIcon: analysis.suggested_icon,
+                            smartColor: analysis.suggested_color,
                             type: type,
                             isProcessed: true
                         )
                         modelContext.insert(newNote)
-                        
                     case .failure(let error):
                         print("Hata: \(error)")
                         let newNote = VoiceNote(
@@ -339,35 +346,131 @@ struct HomeView: View {
     }
 }
 
-// MARK: - YARDIMCI GÖRÜNÜMLER
-
-// 👇 YENİLENMİŞ PULSING BLOB
-struct PulsingBlob: View {
-    @State private var animate = false
+// MARK: - YENİ MIND MAP SHEET (Tam Ekran Modu)
+struct MindMapSheetView: View {
+    let notes: [VoiceNote]
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var mapScale: CGFloat = 1.0
+    @State private var mapOffset: CGSize = .zero
+    @State private var currentDragOffset: CGSize = .zero
+    @State private var currentMagnification: CGFloat = 1.0
     
     var body: some View {
-        Circle()
-        // Beyaz yerine Kayıt Gradyanı kullanıyoruz, böylece "Glow" etkisi oluşuyor
-            .fill(DesignSystem.Gradients.recordingAction)
-            .frame(width: 60, height: 60) // Butonla aynı boyutta başla
-            .scaleEffect(animate ? 2.0 : 1.0) // 2 katına kadar büyüt
-            .opacity(animate ? 0.0 : 0.5) // Giderek kaybol
-            .onAppear {
-                animate = false // Sıfırla
-                withAnimation(
-                    .easeOut(duration: 1.5).repeatForever(autoreverses: false)
-                ) {
-                    animate = true
+        ZStack {
+            // Arka Plan (Aynı tutarlılık için)
+            MeshBackground().ignoresSafeArea()
+            
+            GeometryReader { geo in
+                ZStack {
+                    // Harita Tuvali
+                    MindMapView(notes: notes)
+                        .frame(width: 1500, height: 1500)
+                        .contentShape(
+                            Rectangle()
+                        ) // Boşlukları sürüklenebilir yap
+                        .scaleEffect(mapScale * currentMagnification)
+                        .offset(
+                            x: mapOffset.width + currentDragOffset.width,
+                            y: mapOffset.height + currentDragOffset.height
+                        )
+                        .position(
+                            x: geo.size.width / 2,
+                            y: geo.size.height / 2
+                        ) // Merkeze sabitle
+                        .gesture(
+                            DragGesture()
+                                .onChanged {
+                                    val in currentDragOffset = val.translation
+                                }
+                                .onEnded { val in
+                                    mapOffset.width += val.translation.width
+                                    mapOffset.height += val.translation.height
+                                    currentDragOffset = .zero
+                                }
+                        )
+                        .simultaneousGesture(
+                            MagnificationGesture()
+                                .onChanged { val in currentMagnification = val }
+                                .onEnded { val in
+                                    mapScale *= val
+                                    currentMagnification = 1.0
+                                }
+                        )
                 }
             }
+            
+            // ÜST BAR (Kapat Butonu)
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                            .padding()
+                    }
+                }
+                Spacer()
+            }
+            
+            // ALT KONTROLLER
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    mapControls
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 50)
+                }
+            }
+        }
+    }
+    
+    private var mapControls: some View {
+        VStack(spacing: 12) {
+            Button(
+                action: { withAnimation { mapScale = min(mapScale + 0.5, 3.0) }
+                }) {
+                    Image(systemName: "plus")
+                        .font(.title3)
+                        .padding(12)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                }
+            Button(
+                action: { withAnimation(.spring()) {
+                    mapScale = 1.0; mapOffset = .zero
+                }
+                }) {
+                    Image(systemName: "location.fill")
+                        .font(.title3)
+                        .padding(12)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .foregroundStyle(.blue)
+                }
+            Button(
+                action: { withAnimation { mapScale = max(mapScale - 0.5, 0.5) }
+                }) {
+                    Image(systemName: "minus")
+                        .font(.title3)
+                        .padding(12)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                }
+        }
+        .foregroundStyle(.primary)
     }
 }
 
+// MARK: - YARDIMCI VIEW'LAR
 struct FilterChip: View {
     let title: String
     let isSelected: Bool
     let action: () -> Void
-    
     var body: some View {
         Button(action: action) {
             Text(title)
@@ -389,5 +492,24 @@ struct FilterChip: View {
                         )
                 )
         }
+    }
+}
+
+struct PulsingBlob: View {
+    @State private var animate = false
+    var body: some View {
+        Circle()
+            .fill(DesignSystem.Gradients.recordingAction)
+            .frame(width: 60, height: 60)
+            .scaleEffect(animate ? 2.0 : 1.0)
+            .opacity(animate ? 0.0 : 0.5)
+            .onAppear {
+                animate = false
+                withAnimation(
+                    .easeOut(duration: 1.5).repeatForever(autoreverses: false)
+                ) {
+                    animate = true
+                }
+            }
     }
 }
