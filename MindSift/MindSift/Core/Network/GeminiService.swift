@@ -25,7 +25,6 @@ struct GeminiErrorDetail: Codable {
     let status: String?
 }
 
-// Model Listesi (Hata durumunda debug için)
 struct ModelListResponse: Codable {
     let models: [ModelInfo]?
 }
@@ -36,7 +35,7 @@ struct ModelInfo: Codable {
 
 // MARK: - Gemini Servisi
 class GeminiService {
-    // API Anahtarını Secrets dosyasından alıyoruz
+    // API Anahtarını Secrets dosyasından alıyoruz (Güvenlik)
     private let apiKey = Secrets.geminiAPIKey
     
     // Model: Kararlı, hızlı ve ücretsiz kota dostu sürüm
@@ -66,9 +65,12 @@ class GeminiService {
         dateFormatter.locale = Locale(identifier: "tr_TR")
         let currentDateString = dateFormatter.string(from: Date())
         
+        let timePrompt = is24Hour ? "Zamanları 24 saat formatında (Örn: 14:00) hesapla." : "Zamanları 12 saat formatında (Örn: 02:00 PM) düşün ama çıktı olarak yine ISO ver."
+        
         // 2. Dinamik Prompt (Zeka)
         let promptText = """
         Bugünün tam tarihi ve saati: \(currentDateString).
+        Kullanıcı tercihi: \(timePrompt)
         
         GÖREV: Aşağıdaki metni analiz et, sınıflandır ve ona uygun GÖRSEL bir kimlik (ikon ve renk) oluştur.
         Metin: "\(text)"
@@ -133,7 +135,7 @@ class GeminiService {
                     return
                 }
             
-                // Debug: Gelen ham veriyi konsola bas
+                // Debug: Gelen ham veriyi konsola bas (Hata ayıklama için kritik)
                 if let rawString = String(data: data, encoding: .utf8) {
                     print("📦 API Cevabı: \(rawString)")
                 }

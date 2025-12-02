@@ -5,20 +5,16 @@
 //  Created by Mustafa TAVASLI on 27.11.2025.
 //
 
-
 import SwiftUI
 import AuthenticationServices
 
 struct OnboardingView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var authManager = AuthenticationManager()
-    
-    // Kullanıcının onboarding'i bitirip bitirmediğini takip eder
     @AppStorage("hasSeenOnboarding") var hasSeenOnboarding: Bool = false
     
     var body: some View {
         ZStack {
-            // Arka Plan
             DesignSystem.Gradients.primaryAction
                 .opacity(0.1)
                 .ignoresSafeArea()
@@ -26,62 +22,54 @@ struct OnboardingView: View {
             VStack(spacing: 30) {
                 Spacer()
                 
-                // İkon ve Başlık
-                Image(systemName: "waveform.circle.fill")
+                Image(systemName: AppConstants.Icons.waveform)
                     .font(.system(size: 100))
                     .foregroundStyle(DesignSystem.Gradients.primaryAction)
                     .shadow(radius: 10)
                 
                 VStack(spacing: 12) {
-                    Text("MindSift'e Hoşgeldin")
-                        .font(.system(.largeTitle, design: .rounded))
-                        .fontWeight(.bold)
+                    Text(AppConstants.Texts.Onboarding.title)
+                        .font(DesignSystem.Typography.titleLarge())
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                     
-                    Text(
-                        "Düşüncelerini sese dök, yapay zeka onları senin için organize etsin."
-                    )
-                    .font(.body)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 32)
+                    Text(AppConstants.Texts.Onboarding.subtitle)
+                        .font(DesignSystem.Typography.body())
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .padding(.horizontal, 32)
                 }
                 
                 Spacer()
                 
-                // Özellik Listesi
                 VStack(alignment: .leading, spacing: 20) {
                     FeatureRow(
-                        icon: "mic.fill",
-                        title: "Hızlı Kayıt",
-                        desc: "Tek dokunuşla kaydet."
+                        icon: AppConstants.Icons.micFill,
+                        title: AppConstants.Texts.Onboarding.feature1Title,
+                        desc: AppConstants.Texts.Onboarding.feature1Desc
                     )
                     FeatureRow(
-                        icon: "sparkles",
-                        title: "AI Analizi",
-                        desc: "Özetler, başlıklar ve aksiyonlar."
+                        icon: AppConstants.Icons.sparkles,
+                        title: AppConstants.Texts.Onboarding.feature2Title,
+                        desc: AppConstants.Texts.Onboarding.feature2Desc
                     )
                     FeatureRow(
-                        icon: "calendar",
-                        title: "Akıllı Takvim",
-                        desc: "Planların otomatik takvime işlensin."
+                        icon: AppConstants.Icons.calendar,
+                        title: AppConstants.Texts.Onboarding.feature3Title,
+                        desc: AppConstants.Texts.Onboarding.feature3Desc
                     )
                 }
                 .padding(.horizontal)
                 
                 Spacer()
                 
-                // AKSİYON BUTONLARI
                 VStack(spacing: 16) {
-                    // Apple ile Giriş Yap
                     SignInWithAppleButton(
                         onRequest: { request in
                             request.requestedScopes = [.fullName, .email]
                         },
                         onCompletion: { result in
                             authManager.handleSignIn(result: result)
-                            if authManager.isSignedIn {
-                                completeOnboarding()
-                            }
+                            if authManager.isSignedIn { completeOnboarding() }
                         }
                     )
                     .signInWithAppleButtonStyle(.black)
@@ -89,13 +77,12 @@ struct OnboardingView: View {
                     .cornerRadius(12)
                     .padding(.horizontal, 24)
                     
-                    // Misafir Olarak Devam Et
                     Button {
                         completeOnboarding()
                     } label: {
-                        Text("Şimdilik Geç")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        Text(AppConstants.Texts.Onboarding.skipButton)
+                            .font(DesignSystem.Typography.subheadline())
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
                     }
                 }
                 .padding(.bottom, 30)
@@ -104,9 +91,7 @@ struct OnboardingView: View {
     }
     
     private func completeOnboarding() {
-        withAnimation {
-            hasSeenOnboarding = true
-        }
+        withAnimation { hasSeenOnboarding = true }
     }
 }
 

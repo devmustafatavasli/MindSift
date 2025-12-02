@@ -9,37 +9,28 @@ import SwiftUI
 import SwiftData
 
 struct HomeView: View {
+    // Veritabanı ve Query View tarafında kalır (SwiftUI'ın reaktif yapısı için en doğrusu)
     @Environment(\.modelContext) private var modelContext
-    // Tüm notları çekiyoruz, filtreleme computed property'de yapılacak
     @Query(sort: \VoiceNote.createdAt, order: .reverse) private var allNotes: [VoiceNote]
     
-    // Yöneticiler
-    @StateObject private var audioManager = AudioManager()
-    @StateObject private var speechManager = SpeechManager()
-    @StateObject private var calendarManager = CalendarManager()
+    // 👇 TEK KAYNAK: Tüm mantık ve durumlar burada
+    @StateObject private var viewModel = HomeViewModel()
     
-    private let geminiService = GeminiService()
-    
-    // UI Durumları
-    @State private var isAnalyzing = false
-    @State private var showSettings = false
-    @State private var showMindMap = false // Harita modu
-    
-    // Arama ve Filtre
-    @State private var searchText = ""
-    @State private var selectedType: NoteType? = nil
-    
-    // Filtrelenmiş Liste Mantığı
+    // Filtrelenmiş Liste (Logic: View'da kalabilir çünkü @Query'ye bağlı)
     var filteredNotes: [VoiceNote] {
         allNotes.filter { note in
-            let typeMatch = (selectedType == nil) || (note.type == selectedType)
+            let typeMatch = (viewModel.selectedType == nil) || (
+                note.type == viewModel.selectedType
+            )
             
-            let textMatch = searchText.isEmpty ||
-            (note.title?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-            (note.summary?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+            let textMatch = viewModel.searchText.isEmpty ||
+            (note.title?.localizedCaseInsensitiveContains(viewModel.searchText) ?? false) ||
+            (note.summary?.localizedCaseInsensitiveContains(viewModel.searchText) ?? false) ||
             (
                 note.transcription?
-                    .localizedCaseInsensitiveContains(searchText) ?? false
+                    .localizedCaseInsensitiveContains(
+                        viewModel.searchText
+                    ) ?? false
             )
             
             return typeMatch && textMatch
@@ -49,7 +40,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                // 1. ARKA PLAN (Canlı Mesh Gradient)
+                // 1. ARKA PLAN
                 MeshBackground()
                     .ignoresSafeArea()
                 
@@ -60,10 +51,10 @@ struct HomeView: View {
                     
                     // 3. İÇERİK LİSTESİ
                     if filteredNotes.isEmpty {
-                        if !searchText.isEmpty || selectedType != nil {
-                            noResultsView // Arama sonucu boş
+                        if !viewModel.searchText.isEmpty || viewModel.selectedType != nil {
+                            noResultsView
                         } else {
-                            emptyStateView // Hiç not yok
+                            emptyStateView
                         }
                     } else {
                         notesScrollView
@@ -74,17 +65,17 @@ struct HomeView: View {
                 floatingRecordingBar
                     .padding(.bottom, 20)
             }
-            .navigationTitle("MindSift")
+            .navigationTitle(AppConstants.Texts.appName)
             .navigationBarTitleDisplayMode(.large)
             
             // AYARLAR BUTONU
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showSettings = true
+                        viewModel.showSettings = true
                     } label: {
-                        Image(systemName: "gearshape.fill")
-                            .foregroundStyle(.primary)
+                        Image(systemName: AppConstants.Icons.gear)
+                            .foregroundStyle(DesignSystem.Colors.primaryBlue)
                             .padding(8)
                             .background(.ultraThinMaterial)
                             .clipShape(Circle())
@@ -93,27 +84,33 @@ struct HomeView: View {
             }
         }
         // TAM EKRAN HARİTA MODU
-        .fullScreenCover(isPresented: $showMindMap) {
+        .fullScreenCover(isPresented: $viewModel.showMindMap) {
             MindMapSheetView(notes: filteredNotes)
         }
         // AYARLAR SAYFASI
-        .sheet(isPresented: $showSettings) {
+        .sheet(isPresented: $viewModel.showSettings) {
             SettingsView()
         }
         // KAYIT BİTİNCE ÇALIŞIR
-        .onChange(of: audioManager.audioURL) { oldValue, newURL in
-            if let url = newURL { processAudio(url: url) }
+        .onChange(of: viewModel.audioManager.audioURL) { oldValue, newURL in
+            if let url = newURL {
+                viewModel.processAudio(url: url, context: modelContext)
+            }
         }
         // DIŞARIDAN TETİKLEME (URL SCHEME)
         .onOpenURL { url in
-            handleDeepLink(url: url)
+            viewModel.handleDeepLink(url: url)
         }
         // AÇILIŞ İŞLEMLERİ
         .onAppear {
-            audioManager.checkPermissions()
-            speechManager.checkPermissions()
-            // Share Extension'dan gelen işlenmemiş notları kontrol et
-            processPendingNotes()
+            // Share Extension'dan gelenleri işle
+            viewModel.processPendingNotes(allNotes: allNotes)
+        }
+        // İNTERNET UYARISI
+        .alert("Bağlantı Hatası", isPresented: $viewModel.showNetworkAlert) {
+            Button(AppConstants.Texts.Actions.ok, role: .cancel) { }
+        } message: {
+            Text(viewModel.networkErrorMessage)
         }
     }
     
@@ -125,17 +122,22 @@ struct HomeView: View {
             // Arama Çubuğu ve Harita Butonu
             HStack(spacing: 12) {
                 HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Notlarda ara...", text: $searchText)
-                        .textFieldStyle(.plain)
+                    Image(systemName: AppConstants.Icons.magnifyingGlass)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    TextField(
+                        AppConstants.Texts.Home.searchPlaceholder,
+                        text: $viewModel.searchText
+                    )
+                    .textFieldStyle(.plain)
                     
-                    if !searchText.isEmpty {
+                    if !viewModel.searchText.isEmpty {
                         Button {
-                            withAnimation { searchText = "" }
+                            withAnimation { viewModel.searchText = "" }
                         } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
+                            Image(systemName: AppConstants.Icons.xmarkCircle)
+                                .foregroundStyle(
+                                    DesignSystem.Colors.textSecondary
+                                )
                         }
                     }
                 }
@@ -145,11 +147,11 @@ struct HomeView: View {
                 
                 // Harita Açma Butonu
                 Button {
-                    showMindMap = true
+                    viewModel.showMindMap = true
                 } label: {
-                    Image(systemName: "network") // Zihin haritası ikonu
+                    Image(systemName: AppConstants.Icons.network)
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                         .frame(width: 44, height: 44)
                         .background(.ultraThinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -157,19 +159,22 @@ struct HomeView: View {
             }
             .padding(.horizontal)
             
-            // Kategori Çipleri (Yatay Kaydırma)
+            // Kategori Çipleri
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    FilterChip(title: "Tümü", isSelected: selectedType == nil) {
-                        withAnimation { selectedType = nil }
+                    FilterChip(
+                        title: "Tümü",
+                        isSelected: viewModel.selectedType == nil
+                    ) {
+                        withAnimation { viewModel.selectedType = nil }
                     }
                     
                     ForEach(NoteType.allCases, id: \.self) { type in
                         FilterChip(
                             title: type.rawValue,
-                            isSelected: selectedType == type
+                            isSelected: viewModel.selectedType == type
                         ) {
-                            withAnimation { selectedType = type }
+                            withAnimation { viewModel.selectedType = type }
                         }
                     }
                 }
@@ -179,115 +184,121 @@ struct HomeView: View {
         .padding(.bottom, 8)
     }
     
-    // Boş Durum (İlk Açılış)
+    // Boş Durum
     private var emptyStateView: some View {
         VStack(spacing: 24) {
             Spacer()
             ZStack {
                 Circle()
-                    .fill(Color.blue.opacity(0.05))
+                    .fill(DesignSystem.Colors.primaryBlue.opacity(0.05))
                     .frame(width: 120, height: 120)
-                Image(systemName: "mic.fill")
+                Image(systemName: AppConstants.Icons.micFill)
                     .font(.system(size: 50))
                     .foregroundStyle(DesignSystem.Gradients.primaryAction)
             }
             
             VStack(spacing: 8) {
-                Text("Zihnin Çok mu Dolu?")
+                Text(AppConstants.Texts.Home.emptyTitle)
                     .font(DesignSystem.Typography.titleLarge())
                     .scaleEffect(0.8)
-                    .foregroundStyle(.primary)
-                Text(
-                    "Mikrofona dokun ve aklındakileri boşalt.\nMindSift gerisini halleder."
-                )
-                .font(DesignSystem.Typography.body())
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 40)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Text(AppConstants.Texts.Home.emptySubtitle)
+                    .font(DesignSystem.Typography.body())
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .padding(.horizontal, 40)
             }
             Spacer()
-            Spacer() // Alt boşluk dengesi
+            Spacer()
         }
     }
     
-    // Arama Sonucu Bulunamadı
+    // Sonuç Bulunamadı
     private var noResultsView: some View {
         VStack(spacing: 16) {
             Spacer()
-            Image(systemName: "magnifyingglass")
+            Image(systemName: AppConstants.Icons.magnifyingGlass)
                 .font(.system(size: 40))
-                .foregroundStyle(.secondary.opacity(0.5))
-            Text("Sonuç bulunamadı.")
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+            Text(AppConstants.Texts.Home.noResults)
                 .font(DesignSystem.Typography.body())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
             Spacer()
             Spacer()
         }
     }
     
-    // Notlar Listesi (Scroll View)
+    // Not Listesi
     private var notesScrollView: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
                 ForEach(filteredNotes) { note in
-                    // Karta tıklayınca Detay sayfasına git
                     NavigationLink(destination: NoteDetailView(note: note)) {
                         VoiceNoteCard(note: note)
                     }
-                    .buttonStyle(
-                        PlainButtonStyle()
-                    ) // Mavi link rengini engelle
+                    .buttonStyle(PlainButtonStyle())
                     .contextMenu {
                         Button(role: .destructive) {
-                            deleteNote(note)
+                            viewModel.deleteNote(note, context: modelContext)
                         } label: {
-                            Label("Sil", systemImage: "trash")
+                            Label(
+                                AppConstants.Texts.Actions.delete,
+                                systemImage: AppConstants.Icons.trash
+                            )
                         }
                     }
                 }
             }
             .padding()
-            .padding(.bottom, 100) // Yüzen butonun altında kalmasın
+            .padding(.bottom, 100)
         }
     }
     
-    // Yüzen Kayıt Paneli (Blob Effect)
+    // Yüzen Kayıt Paneli
     private var floatingRecordingBar: some View {
         HStack {
-            if audioManager.isRecording {
-                Label("Kaydediliyor...", systemImage: "waveform")
-                    .foregroundStyle(.white)
-                    .font(DesignSystem.Typography.headline())
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            } else if isAnalyzing {
-                Label("Süzülüyor...", systemImage: "sparkles")
-                    .foregroundStyle(.white)
-                    .font(DesignSystem.Typography.headline())
+            if viewModel.audioManager.isRecording {
+                Label(
+                    AppConstants.Texts.Home.recordingState,
+                    systemImage: AppConstants.Icons.waveform
+                )
+                .foregroundStyle(.white)
+                .font(DesignSystem.Typography.headline())
+                .transition(.move(edge: .leading).combined(with: .opacity))
+            } else if viewModel.isAnalyzing {
+                Label(
+                    AppConstants.Texts.Home.analyzingState,
+                    systemImage: AppConstants.Icons.sparkles
+                )
+                .foregroundStyle(.white)
+                .font(DesignSystem.Typography.headline())
             } else {
-                Text("Düşünceni Kaydet")
+                Text(AppConstants.Texts.Home.idleState)
                     .foregroundStyle(.white.opacity(0.9))
                     .font(DesignSystem.Typography.headline())
             }
             
             Spacer()
             
-            // Kayıt Butonu
             Button {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                    if audioManager.isRecording {
-                        audioManager.stopRecording()
+                withAnimation(
+                    .spring(
+                        response: AppConstants.Animation.springResponse,
+                        dampingFraction: AppConstants.Animation.springDamping
+                    )
+                ) {
+                    if viewModel.audioManager.isRecording {
+                        viewModel.audioManager.stopRecording()
                     } else {
-                        audioManager.startRecording()
+                        viewModel.audioManager.startRecording()
                     }
                 }
             } label: {
                 ZStack {
-                    // Arkadaki Blob Animasyonu (Kayıt Sırasında)
-                    if audioManager.isRecording {
+                    if viewModel.audioManager.isRecording {
                         PulsingBlob()
                     }
                     
-                    // Ana Buton Dairesi
                     Circle()
                         .fill(Color.white)
                         .frame(width: 60, height: 60)
@@ -298,195 +309,29 @@ struct HomeView: View {
                             y: 4
                         )
                     
-                    // İkon
-                    if isAnalyzing {
+                    if viewModel.isAnalyzing {
                         ProgressView()
                             .tint(DesignSystem.Colors.primaryPurple)
                     } else {
                         Image(
-                            systemName: audioManager.isRecording ? "stop.fill" : "mic.fill"
+                            systemName: viewModel.audioManager.isRecording ? AppConstants.Icons.stopFill : AppConstants.Icons.micFill
                         )
                         .font(.title2)
                         .foregroundStyle(
-                            audioManager.isRecording ?
+                            viewModel.audioManager.isRecording ?
                             DesignSystem.Gradients.recordingAction :
                                 DesignSystem.Gradients.primaryAction
                         )
                     }
                 }
             }
-            .disabled(isAnalyzing)
+            .disabled(viewModel.isAnalyzing)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
-        // Panel Arka Planı: Liquid Glass
         .liquidGlass(cornerRadius: 40)
         .padding(.horizontal)
-        .scaleEffect(audioManager.isRecording ? 1.02 : 1.0)
-    }
-    
-    // MARK: - MANTIK (AI & İŞLEME)
-    
-    private func processAudio(url: URL) {
-        speechManager.transcribeAudio(url: url) { text in
-            guard let text = text, !text.isEmpty else { return }
-            
-            withAnimation { isAnalyzing = true }
-            
-            geminiService.analyzeText(text: text) { result in
-                DispatchQueue.main.async {
-                    withAnimation { isAnalyzing = false }
-                    
-                    switch result {
-                    case .success(let analysis):
-                        print("🔍 AI Analizi Başarılı: \(analysis.title)")
-                        
-                        let type = NoteType(
-                            rawValue: analysis.type
-                        ) ?? .unclassified
-                        
-                        // --- Gelişmiş Tarih Ayrıştırma ---
-                        var eventDate: Date? = nil
-                        if let dateString = analysis.event_date {
-                            let isoFormatter = ISO8601DateFormatter()
-                            isoFormatter.formatOptions = [
-                                .withInternetDateTime,
-                                .withFractionalSeconds
-                            ]
-                            eventDate = isoFormatter.date(from: dateString)
-                            
-                            // Yedek formatlar
-                            if eventDate == nil {
-                                let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"; f.locale = Locale(
-                                    identifier: "en_US_POSIX"
-                                )
-                                eventDate = f.date(from: dateString)
-                            }
-                            if eventDate == nil {
-                                let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm"; f.locale = Locale(
-                                    identifier: "en_US_POSIX"
-                                )
-                                eventDate = f.date(from: dateString)
-                            }
-                        }
-                        
-                        // Takvime Ekleme
-                        if let date = eventDate, (
-                            type == .meeting || type == .task
-                        ) {
-                            calendarManager
-                                .addEvent(
-                                    title: analysis.title,
-                                    date: date,
-                                    notes: analysis.summary
-                                )
-                        }
-                        
-                        // Veritabanına Kaydet
-                        let newNote = VoiceNote(
-                            audioFileName: url.lastPathComponent,
-                            transcription: text,
-                            title: analysis.title,
-                            summary: analysis.summary,
-                            priority: analysis.priority,
-                            eventDate: eventDate,
-                            emailSubject: analysis.email_subject,
-                            emailBody: analysis.email_body,
-                            smartIcon: analysis.suggested_icon,
-                            smartColor: analysis.suggested_color,
-                            type: type,
-                            isProcessed: true
-                        )
-                        modelContext.insert(newNote)
-                        
-                    case .failure(let error):
-                        print("AI Hatası: \(error)")
-                        let newNote = VoiceNote(
-                            audioFileName: url.lastPathComponent,
-                            transcription: text,
-                            title: "Analiz Edilemedi",
-                            summary: "Yapay zeka yanıt vermedi ama ses kaydınız güvende.",
-                            type: .unclassified
-                        )
-                        modelContext.insert(newNote)
-                    }
-                }
-            }
-        }
-    }
-    
-    // 👇 SHARE EXTENSION İŞLEYİCİSİ
-    private func processPendingNotes() {
-        let pendingNotes = allNotes.filter { !$0.isProcessed }
-        
-        for note in pendingNotes {
-            print("🔄 İşlenmemiş not bulundu: \(note.title ?? "")")
-            
-            // App Group ID'nizi buraya yazın
-            let appGroupIdentifier = "group.com.example.MindSift"
-            guard let containerUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
-                return
-            }
-            let fileUrl = containerUrl.appendingPathComponent(
-                note.audioFileName
-            )
-            
-            // Analiz Akışını Başlat
-            speechManager.transcribeAudio(url: fileUrl) { text in
-                guard let text = text, !text.isEmpty else { return }
-                
-                self.geminiService.analyzeText(text: text) { result in
-                    DispatchQueue.main.async {
-                        switch result {
-                        case .success(let analysis):
-                            note.transcription = text
-                            note.title = analysis.title
-                            note.summary = analysis.summary
-                            note.type = NoteType(
-                                rawValue: analysis.type
-                            ) ?? .unclassified
-                            note.priority = analysis.priority
-                            note.emailSubject = analysis.email_subject
-                            note.emailBody = analysis.email_body
-                            note.smartIcon = analysis.suggested_icon
-                            note.smartColor = analysis.suggested_color
-                            
-                            if let dateString = analysis.event_date {
-                                let isoFormatter = ISO8601DateFormatter()
-                                isoFormatter.formatOptions = [
-                                    .withInternetDateTime,
-                                    .withFractionalSeconds
-                                ]
-                                note.eventDate = isoFormatter
-                                    .date(from: dateString)
-                            }
-                            note.isProcessed = true
-                            
-                        case .failure(let error):
-                            print("Pending Process Hatası: \(error)")
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    // 👇 DEEP LINK İŞLEYİCİSİ (Kestirmeler İçin)
-    private func handleDeepLink(url: URL) {
-        if url.scheme == "mindsift" && url.host == "record" {
-            print("🚀 Kestirme algılandı: Kayıt Başlatılıyor...")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                if !audioManager.isRecording {
-                    withAnimation { audioManager.startRecording() }
-                }
-            }
-        }
-    }
-    
-    private func deleteNote(_ note: VoiceNote) {
-        withAnimation {
-            modelContext.delete(note)
-        }
+        .scaleEffect(viewModel.audioManager.isRecording ? 1.02 : 1.0)
     }
 }
 
@@ -522,22 +367,20 @@ struct FilterChip: View {
     }
 }
 
-// Yeni Renkli Blob
 struct PulsingBlob: View {
     @State private var animate = false
     
     var body: some View {
         Circle()
-            .fill(
-                DesignSystem.Gradients.recordingAction
-            ) // Kırmızı/Turuncu Glow
+            .fill(DesignSystem.Gradients.recordingAction)
             .frame(width: 60, height: 60)
             .scaleEffect(animate ? 2.0 : 1.0)
             .opacity(animate ? 0.0 : 0.5)
             .onAppear {
                 animate = false
                 withAnimation(
-                    .easeOut(duration: 1.5).repeatForever(autoreverses: false)
+                    .easeOut(duration: AppConstants.Animation.blobDuration)
+                    .repeatForever(autoreverses: false)
                 ) {
                     animate = true
                 }
@@ -545,7 +388,6 @@ struct PulsingBlob: View {
     }
 }
 
-// MARK: - MIND MAP SHEET (Tam Ekran)
 struct MindMapSheetView: View {
     let notes: [VoiceNote]
     @Environment(\.dismiss) var dismiss
@@ -563,7 +405,7 @@ struct MindMapSheetView: View {
                 ZStack {
                     MindMapView(notes: notes)
                         .frame(width: 1500, height: 1500)
-                        .contentShape(Rectangle()) // Boşlukları tutabilmek için
+                        .contentShape(Rectangle())
                         .scaleEffect(mapScale * currentMagnification)
                         .offset(
                             x: mapOffset.width + currentDragOffset.width,
@@ -592,12 +434,11 @@ struct MindMapSheetView: View {
                 }
             }
             
-            // Kapat Butonu
             VStack {
                 HStack {
                     Spacer()
                     Button { dismiss() } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: AppConstants.Icons.xmarkCircle)
                             .font(.largeTitle)
                             .foregroundStyle(.secondary)
                             .padding()
@@ -606,7 +447,6 @@ struct MindMapSheetView: View {
                 Spacer()
             }
             
-            // Kontroller
             VStack {
                 Spacer()
                 HStack {
@@ -624,7 +464,7 @@ struct MindMapSheetView: View {
             Button(
                 action: { withAnimation { mapScale = min(mapScale + 0.5, 3.0) }
                 }) {
-                    Image(systemName: "plus")
+                    Image(systemName: AppConstants.Icons.plus)
                         .font(.title3)
                         .padding(12)
                         .background(.ultraThinMaterial)
@@ -635,23 +475,23 @@ struct MindMapSheetView: View {
                     mapScale = 1.0; mapOffset = .zero
                 }
                 }) {
-                    Image(systemName: "location.fill")
+                    Image(systemName: AppConstants.Icons.location)
                         .font(.title3)
                         .padding(12)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(DesignSystem.Colors.primaryBlue)
                 }
             Button(
                 action: { withAnimation { mapScale = max(mapScale - 0.5, 0.5) }
                 }) {
-                    Image(systemName: "minus")
+                    Image(systemName: AppConstants.Icons.minus)
                         .font(.title3)
                         .padding(12)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
                 }
         }
-        .foregroundStyle(.primary)
+        .foregroundStyle(DesignSystem.Colors.textPrimary)
     }
 }

@@ -8,136 +8,127 @@
 
 import SwiftUI
 import SwiftData
-import AuthenticationServices // <-- EKLE
+import AuthenticationServices
 
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     
-    // Auth Manager'ı buraya bağlıyoruz
-    @StateObject private var authManager = AuthenticationManager()
+    // 👇 ViewModel Bağlantısı
+    @StateObject private var viewModel = SettingsViewModel()
     
+    // Kullanıcı Tercihleri (Basit veri olduğu için View'da kalabilir veya ViewModel'e wrapper yazılabilir)
     @AppStorage("is24HourTime") private var is24HourTime = true
-    @State private var showDeleteAlert = false
     
     var body: some View {
         NavigationStack {
             Form {
-                // 1. GENEL AYARLAR
-                Section {
-                    Toggle("24 Saat Biçimi", isOn: $is24HourTime)
-                        .tint(.blue)
-                } header: {
-                    Text("Görünüm ve Zaman")
+                // 1. GENEL
+                Section(header: Text(AppConstants.Texts.Settings.sectionGeneral)) {
+                    Toggle(
+                        AppConstants.Texts.Settings.toggle24Hour,
+                        isOn: $is24HourTime
+                    )
+                    .tint(DesignSystem.Colors.primaryBlue)
                 }
                 
-                // 2. HESAP (SIWA ENTEGRE EDİLDİ)
-                Section {
+                // 2. HESAP
+                Section(header: Text(AppConstants.Texts.Settings.sectionAccount)) {
                     HStack(spacing: 12) {
                         Image(
-                            systemName: authManager.isSignedIn ? "person.crop.circle.badge.checkmark" : "person.crop.circle.fill"
+                            systemName: viewModel.authManager.isSignedIn ? AppConstants.Icons.personCropCircleCheck : AppConstants.Icons.personCropCircle
                         )
                         .font(.largeTitle)
                         .foregroundStyle(
-                            authManager.isSignedIn ? .green : .gray
+                            viewModel.authManager.isSignedIn ? DesignSystem.Colors.success : .gray
                         )
-                        .symbolEffect(.bounce, value: authManager.isSignedIn)
+                        .symbolEffect(
+                            .bounce,
+                            value: viewModel.authManager.isSignedIn
+                        )
                         
                         VStack(alignment: .leading) {
-                            Text(authManager.userName)
-                                .font(.headline)
+                            Text(viewModel.authManager.userName)
+                                .font(DesignSystem.Typography.headline())
                             Text(
-                                authManager.isSignedIn ? "Oturum Açıldı" : "Giriş yapılmadı"
+                                viewModel.authManager.isSignedIn ? AppConstants.Texts.Settings.loggedInStatus : AppConstants.Texts.Settings.guestStatus
                             )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(DesignSystem.Typography.caption())
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
                         }
                     }
                     .padding(.vertical, 4)
                     
-                    if authManager.isSignedIn {
-                        // ÇIKIŞ BUTONU
+                    if viewModel.authManager.isSignedIn {
                         Button(role: .destructive) {
-                            authManager.signOut()
+                            viewModel.authManager.signOut()
                         } label: {
-                            Text("Çıkış Yap")
+                            Text(AppConstants.Texts.Settings.signOutButton)
                                 .frame(maxWidth: .infinity)
                         }
                     } else {
-                        // GİRİŞ BUTONU (Apple Native Button)
                         SignInWithAppleButton(
                             onRequest: { request in
                                 request.requestedScopes = [.fullName, .email]
                             },
                             onCompletion: { result in
-                                authManager.handleSignIn(result: result)
+                                viewModel.authManager
+                                    .handleSignIn(result: result)
                             }
                         )
                         .frame(height: 44)
-                        .signInWithAppleButtonStyle(.black) // Dark mode uyumlu
+                        .signInWithAppleButtonStyle(.black)
                     }
-                } header: {
-                    Text("Hesap")
                 }
                 
                 // 3. VERİ YÖNETİMİ
                 Section {
                     Button(role: .destructive) {
-                        showDeleteAlert = true
+                        viewModel.showDeleteAlert = true
                     } label: {
-                        Label("Tüm Notları Sil", systemImage: "trash")
+                        Label(
+                            AppConstants.Texts.Settings.deleteDataButton,
+                            systemImage: AppConstants.Icons.trash
+                        )
                     }
                 } header: {
-                    Text("Veri")
+                    Text(AppConstants.Texts.Settings.sectionData)
                 } footer: {
-                    Text(
-                        "Tüm sesli notlarınızı ve analiz geçmişini cihazdan kalıcı olarak siler."
-                    )
+                    Text(AppConstants.Texts.Settings.deleteDataFooter)
                 }
                 
                 // 4. HAKKINDA
                 Section {
                     HStack {
-                        Text("Sürüm")
+                        Text(AppConstants.Texts.Settings.version)
                         Spacer()
-                        Text("1.0.0 (Beta)")
-                            .foregroundStyle(.secondary)
+                        Text(AppConstants.Texts.Settings.versionNumber)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
                     }
                 } header: {
-                    Text("Hakkında")
+                    Text(AppConstants.Texts.Settings.sectionAbout)
                 }
             }
-            .navigationTitle("Ayarlar")
+            .navigationTitle(AppConstants.Texts.Settings.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Bitti") { dismiss() }
+                    Button(AppConstants.Texts.Actions.done) { dismiss() }
                         .fontWeight(.semibold)
                 }
             }
-            .alert("Tüm Veriler Silinecek", isPresented: $showDeleteAlert) {
-                Button("İptal", role: .cancel) { }
-                Button("Sil", role: .destructive) {
-                    deleteAllData()
+            .alert(
+                AppConstants.Texts.Errors.deleteConfirmationTitle,
+                isPresented: $viewModel.showDeleteAlert
+            ) {
+                Button(AppConstants.Texts.Actions.cancel, role: .cancel) { }
+                Button(AppConstants.Texts.Actions.delete, role: .destructive) {
+                    viewModel.deleteAllData(context: modelContext)
                 }
             } message: {
-                Text(
-                    "Bu işlem geri alınamaz. Kaydedilen tüm notlar silinecektir."
-                )
+                Text(AppConstants.Texts.Errors.deleteConfirmationMsg)
             }
-        }
-    }
-    
-    private func deleteAllData() {
-        do {
-            try modelContext.delete(model: VoiceNote.self)
-            print("🗑️ Tüm veriler temizlendi.")
-        } catch {
-            print("Silme hatası: \(error)")
         }
     }
 }
 
-#Preview {
-    SettingsView()
-}

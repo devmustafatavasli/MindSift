@@ -8,27 +8,16 @@
 import SwiftUI
 
 struct NoteDetailView: View {
-    let note: VoiceNote
+    @StateObject private var viewModel: NoteDetailViewModel
     @Environment(\.dismiss) var dismiss
-    @State private var showShareSheet = false
-    @State private var showAlert = false
-    @State private var alertMessage = ""
     
-    // 👇 YENİ: Ses Oynatıcı Yöneticisi
-    @StateObject private var playerManager = AudioPlayerManager()
-    
-    // Akıllı Renk
-    var accentColor: Color {
-        if let hex = note.smartColor { return Color(hex: hex) }
-        return .blue
+    // Dependency Injection: Notu alıp ViewModel'i başlatıyoruz
+    init(note: VoiceNote) {
+        _viewModel = StateObject(wrappedValue: NoteDetailViewModel(note: note))
     }
-    
-    // Akıllı İkon
-    var iconName: String { note.smartIcon ?? note.type.iconName }
     
     var body: some View {
         ZStack {
-            // Arka Plan (Hafif tema rengiyle)
             DesignSystem.Gradients.primaryAction
                 .opacity(0.05)
                 .ignoresSafeArea()
@@ -36,73 +25,81 @@ struct NoteDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     
-                    // 1. BAŞLIK ALANI
+                    // 1. BAŞLIK
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 12) {
                             ZStack {
                                 Circle()
-                                    .fill(accentColor.opacity(0.1))
+                                    .fill(viewModel.accentColor.opacity(0.1))
                                     .frame(width: 50, height: 50)
-                                Image(systemName: iconName)
-                                    .foregroundStyle(accentColor)
+                                Image(systemName: viewModel.iconName)
+                                    .foregroundStyle(viewModel.accentColor)
                                     .font(.title2)
                             }
                             
-                            Text(note.type.rawValue)
-                                .font(.caption)
+                            Text(viewModel.note.type.rawValue)
+                                .font(DesignSystem.Typography.caption())
                                 .fontWeight(.bold)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(accentColor.opacity(0.1))
-                                .foregroundStyle(accentColor)
+                                .background(viewModel.accentColor.opacity(0.1))
+                                .foregroundStyle(viewModel.accentColor)
                                 .clipShape(Capsule())
                         }
                         
-                        Text(note.title ?? "İsimsiz Not")
-                            .font(.system(.largeTitle, design: .rounded))
+                        Text(viewModel.note.title ?? "İsimsiz Not")
+                            .font(DesignSystem.Typography.titleLarge())
                             .fontWeight(.bold)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(DesignSystem.Colors.textPrimary)
                         
                         Text(
-                            note.createdAt
+                            viewModel.note.createdAt
                                 .formatted(date: .long, time: .shortened)
                         )
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(DesignSystem.Typography.subheadline())
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
                     }
                     .padding(.top, 20)
                     
-                    // 👇 YENİ: SES OYNATICI KARTI
+                    // 2. SES OYNATICI
                     VStack(spacing: 12) {
                         HStack {
-                            // Play/Pause Butonu
                             Button {
-                                playerManager.playPause()
+                                viewModel.playerManager.playPause()
                             } label: {
                                 Image(
-                                    systemName: playerManager.isPlaying ? "pause.circle.fill" : "play.circle.fill"
+                                    systemName: viewModel.playerManager.isPlaying ? AppConstants.Icons.pause : AppConstants.Icons.play
                                 )
                                 .font(.system(size: 44))
-                                .foregroundStyle(accentColor)
-                                .background(
-                                    Circle().fill(.white).padding(4)
-                                ) // Arka plan temizliği
+                                .foregroundStyle(viewModel.accentColor)
+                                .background(Circle().fill(.white).padding(4))
                                 .shadow(radius: 2)
                             }
                             
                             VStack(spacing: 4) {
-                                // Slider (İlerleme Çubuğu)
-                                Slider(value: Binding(
-                                    get: { playerManager.currentTime },
-                                    set: { playerManager.seek(to: $0) }
-                                ), in: 0...playerManager.duration)
-                                .tint(accentColor)
+                                Slider(
+value: Binding(
+    get: {
+        viewModel.playerManager.currentTime
+    },
+    set: { viewModel.playerManager.seek(to: $0) }
+),
+in: 0...viewModel.playerManager.duration
+                                )
+                                .tint(viewModel.accentColor)
                                 
-                                // Süreler (00:00 / 01:25)
                                 HStack {
-                                    Text(formatTime(playerManager.currentTime))
+                                    Text(
+                                        formatTime(
+                                            viewModel.playerManager.currentTime
+                                        )
+                                    )
                                     Spacer()
-                                    Text(formatTime(playerManager.duration))
+                                    Text(
+                                        formatTime(
+                                            viewModel.playerManager.duration
+                                        )
+                                    )
                                 }
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
@@ -115,17 +112,20 @@ struct NoteDetailView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(accentColor.opacity(0.2), lineWidth: 1)
+                            .stroke(
+                                viewModel.accentColor.opacity(0.2),
+                                lineWidth: 1
+                            )
                     )
                     
-                    // 2. MAİL AKSİYON KARTI (Varsa)
-                    if note.type == .email, let subject = note.emailSubject, let body = note.emailBody {
+                    // 3. MAİL AKSİYON KARTI
+                    if viewModel.note.type == .email, let subject = viewModel.note.emailSubject, let body = viewModel.note.emailBody {
                         VStack(alignment: .leading, spacing: 16) {
                             Label(
-                                "E-posta Taslağı",
-                                systemImage: "envelope.fill"
+                                AppConstants.Texts.Detail.emailDraftTitle,
+                                systemImage: AppConstants.Icons.envelope
                             )
-                            .font(.headline)
+                            .font(DesignSystem.Typography.headline())
                             .foregroundStyle(.white)
                             
                             VStack(alignment: .leading, spacing: 8) {
@@ -147,46 +147,57 @@ struct NoteDetailView: View {
                                     .lineLimit(4)
                             }
                             
-                            Button { openMailApp(subject: subject, body: body) } label: {
+                            Button { viewModel.openMailApp() } label: {
                                 HStack {
-                                    Text("Mail Uygulamasında Aç")
+                                    Text(
+                                        AppConstants.Texts.Detail.openMailButton
+                                    )
                                     Spacer()
                                     Image(
-                                        systemName: "arrow.up.right.circle.fill"
+                                        systemName: AppConstants.Icons.arrowUpRight
                                     )
                                 }
                                 .fontWeight(.bold)
                                 .padding()
                                 .background(Color.white)
-                                .foregroundStyle(accentColor)
+                                .foregroundStyle(viewModel.accentColor)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
                         }
                         .padding()
                         .background(
                             LinearGradient(
-                                colors: [accentColor, accentColor.opacity(0.6)],
+                                colors: [
+                                    viewModel.accentColor,
+                                    viewModel.accentColor.opacity(0.6)
+                                ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 20))
                         .shadow(
-                            color: accentColor.opacity(0.3),
+                            color: viewModel.accentColor.opacity(0.3),
                             radius: 10,
                             x: 0,
                             y: 5
                         )
                     }
                     
-                    // 3. AI ÖZET
-                    if let summary = note.summary {
+                    // 4. AI ÖZET
+                    if let summary = viewModel.note.summary {
                         VStack(alignment: .leading, spacing: 12) {
-                            Label("AI Özeti", systemImage: "sparkles")
-                                .font(.headline).foregroundStyle(accentColor)
+                            Label(
+                                AppConstants.Texts.Detail.aiSummaryTitle,
+                                systemImage: AppConstants.Icons.sparkles
+                            )
+                            .font(DesignSystem.Typography.headline())
+                            .foregroundStyle(viewModel.accentColor)
                             Text(summary)
-                                .font(.body)
-                                .foregroundStyle(.primary.opacity(0.9))
+                                .font(DesignSystem.Typography.body())
+                                .foregroundStyle(
+                                    DesignSystem.Colors.textPrimary.opacity(0.9)
+                                )
                                 .lineSpacing(4)
                         }
                         .padding()
@@ -195,19 +206,27 @@ struct NoteDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16)
-                                .stroke(accentColor.opacity(0.2), lineWidth: 1)
+                                .stroke(
+                                    viewModel.accentColor.opacity(0.2),
+                                    lineWidth: 1
+                                )
                         )
                     }
                     
-                    // 4. TRANSKRİPT
+                    // 5. TRANSKRİPT
                     VStack(alignment: .leading, spacing: 12) {
-                        Label("Transkript", systemImage: "text.alignleft")
-                            .font(.headline)
-                            .foregroundStyle(.gray)
-                        Text(note.transcription ?? "Ses çözülemedi.")
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .lineSpacing(6)
+                        Label(
+                            AppConstants.Texts.Detail.transcriptTitle,
+                            systemImage: AppConstants.Icons.textAlignLeft
+                        )
+                        .font(DesignSystem.Typography.headline())
+                        .foregroundStyle(.gray)
+                        Text(
+                            viewModel.note.transcription ?? AppConstants.Texts.Detail.audioError
+                        )
+                        .font(DesignSystem.Typography.body())
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .lineSpacing(6)
                     }
                     .padding()
                     .background(
@@ -223,79 +242,30 @@ struct NoteDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { showShareSheet = true } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .foregroundStyle(accentColor)
+                Button { viewModel.showShareSheet = true } label: {
+                    Image(systemName: AppConstants.Icons.share)
+                        .foregroundStyle(viewModel.accentColor)
                 }
             }
         }
-        .sheet(isPresented: $showShareSheet) {
-            ShareSheet(items: [generateShareText()])
+        .sheet(isPresented: $viewModel.showShareSheet) {
+            ShareSheet(items: [viewModel.generateShareText()])
         }
-        .alert("Bilgi", isPresented: $showAlert) {
-            Button("Tamam", role: .cancel) { }
+        .alert(
+            AppConstants.Texts.Actions.ok,
+            isPresented: $viewModel.showAlert
+        ) {
+            Button(AppConstants.Texts.Actions.ok, role: .cancel) { }
         } message: {
-            Text(alertMessage)
+            Text(viewModel.alertMessage)
         }
-        // 👇 Sayfa açılınca player'ı hazırla
-        .onAppear {
-            playerManager.setupPlayer(audioFileName: note.audioFileName)
-        }
-        // 👇 Sayfadan çıkınca durdur
-        .onDisappear {
-            playerManager.playPause() // Çalıyorsa durdurur
-        }
+        .onAppear { viewModel.onAppear() }
+        .onDisappear { viewModel.onDisappear() }
     }
     
-    // Süre Formatlayıcı
     private func formatTime(_ time: TimeInterval) -> String {
         let minutes = Int(time) / 60
         let seconds = Int(time) % 60
         return String(format: "%02d:%02d", minutes, seconds)
-    }
-    
-    private func openMailApp(subject: String, body: String) {
-        let encodedSubject = subject.addingPercentEncoding(
-            withAllowedCharacters: .urlQueryAllowed
-        ) ?? ""
-        let encodedBody = body.addingPercentEncoding(
-            withAllowedCharacters: .urlQueryAllowed
-        ) ?? ""
-        if let url = URL(
-            string: "mailto:?subject=\(encodedSubject)&body=\(encodedBody)"
-        ) {
-            if UIApplication.shared
-                .canOpenURL(url) { UIApplication.shared.open(url) }
-            else {
-                UIPasteboard.general.string = "Konu: \(subject)\n\n\(body)"
-                alertMessage = "Mail uygulaması bulunamadı. İçerik panoya kopyalandı."
-                showAlert = true
-            }
-        }
-    }
-    
-    private func generateShareText() -> String {
-        """
-        📄 \(note.title ?? "Sesli Not")
-        ✨ Özet: \(note.summary ?? "")
-        📝 İçerik:
-        \(note.transcription ?? "")
-        🤖 MindSift ile oluşturuldu.
-        """
-    }
-}
-
-struct ShareSheet: UIViewControllerRepresentable {
-    var items: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(
-            activityItems: items,
-            applicationActivities: nil
-        )
-    }
-    func updateUIViewController(
-        _ uiViewController: UIActivityViewController,
-        context: Context
-    ) {
     }
 }
