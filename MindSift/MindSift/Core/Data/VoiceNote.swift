@@ -1,5 +1,5 @@
 //
-//  Voice<note.swift
+//  VoiceNote.swift
 //  MindSift
 //
 //  Created by Mustafa TAVASLI on 24.11.2025.
@@ -46,6 +46,9 @@ final class VoiceNote {
     var smartIcon: String?
     var smartColor: String?
     
+    // Metnin vektörel olarak sayısal karşılığını tutacağız.
+    var embedding: [Float]?
+    
     var createdAt: Date
     var type: NoteType
     var isProcessed: Bool
@@ -61,6 +64,7 @@ final class VoiceNote {
          emailBody: String? = nil,
          smartIcon: String? = nil,
          smartColor: String? = nil,
+         embedding: [Float]? = nil,
          createdAt: Date = Date(),
          type: NoteType = .unclassified,
          isProcessed: Bool = false) {
@@ -76,6 +80,7 @@ final class VoiceNote {
         self.emailBody = emailBody
         self.smartIcon = smartIcon
         self.smartColor = smartColor
+        self.embedding = embedding
         self.createdAt = createdAt
         self.type = type
         self.isProcessed = isProcessed

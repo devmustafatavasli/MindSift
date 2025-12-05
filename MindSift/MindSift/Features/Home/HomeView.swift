@@ -16,25 +16,14 @@ struct HomeView: View {
     // 👇 TEK KAYNAK: Tüm mantık ve durumlar burada
     @StateObject private var viewModel = HomeViewModel()
     
-    // Filtrelenmiş Liste (Logic: View'da kalabilir çünkü @Query'ye bağlı)
+    // Filtrelenmiş Liste (Logic: Artık SearchManager'a delege edildi)
+    // ✨ GÜNCELLENDİ: Daha temiz ve yönetilebilir yapı
     var filteredNotes: [VoiceNote] {
-        allNotes.filter { note in
-            let typeMatch = (viewModel.selectedType == nil) || (
-                note.type == viewModel.selectedType
-            )
-            
-            let textMatch = viewModel.searchText.isEmpty ||
-            (note.title?.localizedCaseInsensitiveContains(viewModel.searchText) ?? false) ||
-            (note.summary?.localizedCaseInsensitiveContains(viewModel.searchText) ?? false) ||
-            (
-                note.transcription?
-                    .localizedCaseInsensitiveContains(
-                        viewModel.searchText
-                    ) ?? false
-            )
-            
-            return typeMatch && textMatch
-        }
+        viewModel.searchManager.search(
+            query: viewModel.searchText,
+            notes: allNotes,
+            selectedType: viewModel.selectedType
+        )
     }
     
     var body: some View {

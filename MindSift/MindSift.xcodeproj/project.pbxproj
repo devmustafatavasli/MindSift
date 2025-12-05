@@ -102,7 +102,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Core/Data/VoiceNote.swift,
-				Core/Utils/AppConstants.swift,
 				Core/Utils/DesignSystem.swift,
 			);
 			target = BC12FF6D2EDE3CE900396CA8 /* MindSiftShare */;

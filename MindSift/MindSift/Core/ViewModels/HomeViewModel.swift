@@ -5,7 +5,6 @@
 //  Created by Mustafa TAVASLI on 2.12.2025.
 //
 
-
 import Foundation
 import SwiftData
 import SwiftUI
@@ -23,6 +22,7 @@ class HomeViewModel: ObservableObject {
     let speechManager = SpeechManager()
     let calendarManager = CalendarManager()
     let networkManager = NetworkManager()
+    let searchManager = SearchManager() // ✨ YENİ EKLENDİ
     
     private let geminiService = GeminiService()
     
@@ -99,7 +99,12 @@ class HomeViewModel: ObservableObject {
                     switch result {
                     case .success(let analysis):
                         // 5. Başarılı Sonucu Kaydet
-                        self.saveAnalyzedNote(text: text, analysis: analysis, audioURL: url, context: context)
+                        self.saveAnalyzedNote(
+                            text: text,
+                            analysis: analysis,
+                            audioURL: url,
+                            context: context
+                        )
                         
                     case .failure(let error):
                         print("AI Hatası: \(error.localizedDescription)")
@@ -130,20 +135,30 @@ class HomeViewModel: ObservableObject {
             
             // Dosyayı App Group içinden bul
             // (İleride bu ID'yi de Constant'a taşıyacağız)
-            let appGroupIdentifier = "group.com.example.MindSift" 
+            let appGroupIdentifier = "group.com.devmustafatavasli.MindSift" // Güncellendi
             
-            guard let containerUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else { return }
-            let fileUrl = containerUrl.appendingPathComponent(note.audioFileName)
+            guard let containerUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
+                return
+            }
+            let fileUrl = containerUrl.appendingPathComponent(
+                note.audioFileName
+            )
             
             // Analiz Akışı (Mevcut notu güncelleyerek)
             speechManager.transcribeAudio(url: fileUrl) { [weak self] text in
-                guard let self = self, let text = text, !text.isEmpty else { return }
+                guard let self = self, let text = text, !text.isEmpty else {
+                    return
+                }
                 
                 self.geminiService.analyzeText(text: text) { result in
                     DispatchQueue.main.async {
                         switch result {
                         case .success(let analysis):
-                            self.updateNoteWithAnalysis(note: note, text: text, analysis: analysis)
+                            self.updateNoteWithAnalysis(
+                                note: note,
+                                text: text,
+                                analysis: analysis
+                            )
                         case .failure(let error):
                             print("Pending Process Hatası: \(error)")
                         }
@@ -160,13 +175,23 @@ class HomeViewModel: ObservableObject {
     
     // MARK: - Private Helpers (Veritabanı İşlemleri)
     
-    private func saveAnalyzedNote(text: String, analysis: AIAnalysisResult, audioURL: URL, context: ModelContext) {
+    private func saveAnalyzedNote(
+        text: String,
+        analysis: AIAnalysisResult,
+        audioURL: URL,
+        context: ModelContext
+    ) {
         let type = NoteType(rawValue: analysis.type) ?? .unclassified
         let eventDate = parseDate(from: analysis.event_date)
         
         // Takvime Ekleme
         if let date = eventDate, (type == .meeting || type == .task) {
-            calendarManager.addEvent(title: analysis.title, date: date, notes: analysis.summary)
+            calendarManager
+                .addEvent(
+                    title: analysis.title,
+                    date: date,
+                    notes: analysis.summary
+                )
         }
         
         // Kayıt
@@ -187,7 +212,11 @@ class HomeViewModel: ObservableObject {
         context.insert(newNote)
     }
     
-    private func updateNoteWithAnalysis(note: VoiceNote, text: String, analysis: AIAnalysisResult) {
+    private func updateNoteWithAnalysis(
+        note: VoiceNote,
+        text: String,
+        analysis: AIAnalysisResult
+    ) {
         note.transcription = text
         note.title = analysis.title
         note.summary = analysis.summary
@@ -205,14 +234,21 @@ class HomeViewModel: ObservableObject {
         guard let dateString = dateString else { return nil }
         
         let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        isoFormatter.formatOptions = [
+            .withInternetDateTime,
+            .withFractionalSeconds
+        ]
         if let date = isoFormatter.date(from: dateString) { return date }
         
         // Yedek formatlar
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         
-        let formats = ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy-MM-dd'T'HH:mm"]
+        let formats = [
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd'T'HH:mm"
+        ]
         for format in formats {
             formatter.dateFormat = format
             if let date = formatter.date(from: dateString) { return date }
