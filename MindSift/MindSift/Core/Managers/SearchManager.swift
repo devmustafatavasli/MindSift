@@ -5,58 +5,94 @@
 //  Created by Mustafa TAVASLI on 5.12.2025.
 //
 
+//
+//  SearchManager.swift
+//  MindSift
+//
+//  Created by Mustafa TAVASLI on 5.12.2025.
+//
+
 import Foundation
 import SwiftData
-import Accelerate // ⚡️ Apple'ın yüksek performanslı matematik kütüphanesi
+import Accelerate // ⚡️ Apple'ın matematik motoru
 import Combine
-
-// MARK: - Search Manager
-// Hibrit Arama Motoru: Hem klasik metin (Keyword) hem de yapay zeka (Vector) aramasını yönetir.
-// Akademik Değer: "Apple Accelerate framework'ü kullanılarak cihaz üzerinde yüksek performanslı Cosine Similarity hesaplaması."
 
 class SearchManager: ObservableObject {
     
-    // Şimdilik sadece klasik aramayı buraya taşıyoruz,
-    // Bir sonraki adımda Vektör Arama yeteneği eklenecek.
+    // Eşik Değer (Threshold): 0.6 üzerindeki benzerlikler "alakalı" sayılır.
+    private let similarityThreshold: Float = 0.4
     
-    /// Hibrit Arama Fonksiyonu
-    /// - Parameters:
-    ///   - query: Kullanıcının yazdığı metin
-    ///   - notes: Veritabanındaki tüm notlar
-    ///   - selectedType: Varsa kategori filtresi
-    /// - Returns: Filtrelenmiş ve sıralanmış notlar
-    func search(query: String, notes: [VoiceNote], selectedType: NoteType?) -> [VoiceNote] {
+    /// Hibrit Arama: Hem Kelime (Keyword) hem de Anlam (Semantic) araması
+    func search(query: String, notes: [VoiceNote], selectedType: NoteType?) async -> [VoiceNote] {
         
-        // 1. Kategori Filtresi (Varsa uygula)
-        let typeFiltered = selectedType == nil ? notes : notes.filter { $0.type == selectedType }
-        
-        // 2. Arama Metni Boşsa Hepsini Dön
-        guard !query.isEmpty else {
-            return typeFiltered
+        // 1. Kategori Filtresi
+        let typeFiltered = selectedType == nil ? notes : notes.filter {
+            $0.type == selectedType
         }
         
-        // 3. Klasik Arama (Keyword Search)
-        // Kullanıcı tam kelimeyi yazarsa kesin bulsun diye bunu tutuyoruz.
-        let keywordResults = typeFiltered.filter { note in
-            let titleMatch = note.title?.localizedCaseInsensitiveContains(query) ?? false
-            let contentMatch = note.transcription?.localizedCaseInsensitiveContains(query) ?? false
-            let summaryMatch = note.summary?.localizedCaseInsensitiveContains(query) ?? false
+        guard !query.isEmpty else { return typeFiltered }
+        
+        // 2. Kullanıcının sorgusunun vektörünü oluştur (Asıl Büyü Burada ✨)
+        let queryEmbedding = await EmbeddingManager.shared.generateEmbedding(
+            from: query
+        )
+        
+        // 3. Notları Puanla
+        let scoredNotes: [(
+            note: VoiceNote,
+            score: Float
+        )] = typeFiltered.compactMap { note in
+            var score: Float = 0.0
             
-            return titleMatch || contentMatch || summaryMatch
+            // A. Kelime Eşleşmesi (Eski yöntem - hala değerli)
+            let textMatch = (note.title?.localizedCaseInsensitiveContains(query) ?? false) ||
+            (
+                note.transcription?
+                    .localizedCaseInsensitiveContains(query) ?? false
+            )
+            if textMatch { score += 1.0 } // Kelime geçiyorsa tam puan
+            
+            // B. Anlamsal Benzerlik (Yeni yöntem)
+            if let noteVector = note.embedding, let queryVector = queryEmbedding {
+                let similarity = cosineSimilarity(queryVector, noteVector)
+                // Sadece pozitif ve anlamlı benzerlikleri ekle
+                if similarity > 0 {
+                    score += similarity
+                }
+            }
+            
+            // Hiç puan alamadıysa ele
+            return score > 0.3 ? (note, score) : nil
         }
         
-        // ⚠️ TODO: Buraya Semantic Search (Vektör Araması) eklenecek.
-        // Semantic sonuçlar ile Keyword sonuçlarını birleştirip (Re-ranking) döndüreceğiz.
-        
-        return keywordResults
+        // 4. Puana Göre Sırala (En alakalı en üstte)
+        return scoredNotes
+            .sorted { $0.score > $1.score }
+            .map { $0.note }
     }
     
-    // MARK: - Gelecek Hazırlığı: Cosine Similarity
-    // İki vektör arasındaki açıyı (benzerliği) hesaplar.
-    // 1.0 = Tamamen aynı anlam, 0.0 = Alakasız, -1.0 = Zıt anlam
-    func cosineSimilarity(_ vectorA: [Float], _ vectorB: [Float]) -> Float {
-        // Accelerate kütüphanesi (vDSP) kullanılarak işlemciyi yormadan hesaplanır.
-        // CoreML entegrasyonundan sonra burayı dolduracağız.
-        return 0.0
+    // MARK: - Cosine Similarity (Kosinüs Benzerliği)
+    // Accelerate (vDSP) kullanarak ultra hızlı hesaplama
+    private func cosineSimilarity(_ vectorA: [Float], _ vectorB: [Float]) -> Float {
+        guard vectorA.count == vectorB.count else { return 0.0 }
+        let count = vDSP_Length(vectorA.count)
+        
+        // Dot Product (Nokta Çarpımı)
+        var dotProduct: Float = 0.0
+        vDSP_dotpr(vectorA, 1, vectorB, 1, &dotProduct, count)
+        
+        // Norm (Büyüklük) Hesaplama
+        var normA: Float = 0.0
+        vDSP_svesq(vectorA, 1, &normA, count) // Kareler toplamı
+        normA = sqrt(normA)
+        
+        var normB: Float = 0.0
+        vDSP_svesq(vectorB, 1, &normB, count)
+        normB = sqrt(normB)
+        
+        // Payda 0 olamaz
+        if normA == 0 || normB == 0 { return 0.0 }
+        
+        return dotProduct / (normA * normB)
     }
 }

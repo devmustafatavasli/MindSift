@@ -11,6 +11,9 @@
 		BC12FF352ED4C87700396CA8 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC12FF342ED4C87700396CA8 /* SwiftUI.framework */; };
 		BC12FF442ED4C87900396CA8 /* MindSiftWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BC12FF302ED4C87600396CA8 /* MindSiftWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BC12FF782EDE3CEA00396CA8 /* MindSiftShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BC12FF6E2EDE3CE900396CA8 /* MindSiftShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		BC5E10D42EE36D2400ECD6CF /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = BC5E10D32EE36D2400ECD6CF /* Hub */; };
+		BC5E10D62EE36D2400ECD6CF /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = BC5E10D52EE36D2400ECD6CF /* Tokenizers */; };
+		BC5E10D82EE36D2400ECD6CF /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = BC5E10D72EE36D2400ECD6CF /* Transformers */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -152,6 +155,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BC5E10D82EE36D2400ECD6CF /* Transformers in Frameworks */,
+				BC5E10D62EE36D2400ECD6CF /* Tokenizers in Frameworks */,
+				BC5E10D42EE36D2400ECD6CF /* Hub in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -245,6 +251,9 @@
 			);
 			name = MindSift;
 			packageProductDependencies = (
+				BC5E10D32EE36D2400ECD6CF /* Hub */,
+				BC5E10D52EE36D2400ECD6CF /* Tokenizers */,
+				BC5E10D72EE36D2400ECD6CF /* Transformers */,
 			);
 			productName = MindSift;
 			productReference = BC12FEE22ED3A97400396CA8 /* MindSift.app */;
@@ -378,6 +387,9 @@
 			);
 			mainGroup = BC12FED92ED3A97400396CA8;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				BC5E10D22EE36D2400ECD6CF /* XCRemoteSwiftPackageReference "swift-transformers" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BC12FEE32ED3A97400396CA8 /* Products */;
 			projectDirPath = "";
@@ -945,6 +957,35 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		BC5E10D22EE36D2400ECD6CF /* XCRemoteSwiftPackageReference "swift-transformers" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-transformers";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BC5E10D32EE36D2400ECD6CF /* Hub */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BC5E10D22EE36D2400ECD6CF /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Hub;
+		};
+		BC5E10D52EE36D2400ECD6CF /* Tokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BC5E10D22EE36D2400ECD6CF /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Tokenizers;
+		};
+		BC5E10D72EE36D2400ECD6CF /* Transformers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BC5E10D22EE36D2400ECD6CF /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Transformers;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = BC12FEDA2ED3A97400396CA8 /* Project object */;
 }

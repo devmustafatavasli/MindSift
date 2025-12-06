@@ -9,37 +9,24 @@ import SwiftUI
 import SwiftData
 
 struct HomeView: View {
-    // Veritabanı ve Query View tarafında kalır (SwiftUI'ın reaktif yapısı için en doğrusu)
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VoiceNote.createdAt, order: .reverse) private var allNotes: [VoiceNote]
     
-    // 👇 TEK KAYNAK: Tüm mantık ve durumlar burada
     @StateObject private var viewModel = HomeViewModel()
     
-    // Filtrelenmiş Liste (Logic: Artık SearchManager'a delege edildi)
-    // ✨ GÜNCELLENDİ: Daha temiz ve yönetilebilir yapı
-    var filteredNotes: [VoiceNote] {
-        viewModel.searchManager.search(
-            query: viewModel.searchText,
-            notes: allNotes,
-            selectedType: viewModel.selectedType
-        )
-    }
+    // Eski "computed property" filteredNotes silindi.
+    // Artık viewModel.filteredNotes kullanılıyor.
     
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                // 1. ARKA PLAN
-                MeshBackground()
-                    .ignoresSafeArea()
+                MeshBackground().ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    // 2. ÜST KISIM (Arama ve Filtreler)
-                    headerSection
-                        .padding(.bottom, 10)
+                    headerSection.padding(.bottom, 10)
                     
-                    // 3. İÇERİK LİSTESİ
-                    if filteredNotes.isEmpty {
+                    // 3. İÇERİK LİSTESİ (Kaynaktan Değişiklik: viewModel.filteredNotes)
+                    if viewModel.filteredNotes.isEmpty {
                         if !viewModel.searchText.isEmpty || viewModel.selectedType != nil {
                             noResultsView
                         } else {
@@ -50,52 +37,71 @@ struct HomeView: View {
                     }
                 }
                 
-                // 4. YÜZEN KAYIT PANELİ
-                floatingRecordingBar
-                    .padding(.bottom, 20)
+                floatingRecordingBar.padding(.bottom, 20)
             }
             .navigationTitle(AppConstants.Texts.appName)
             .navigationBarTitleDisplayMode(.large)
-            
-            // AYARLAR BUTONU
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        viewModel.showSettings = true
-                    } label: {
-                        Image(systemName: AppConstants.Icons.gear)
-                            .foregroundStyle(DesignSystem.Colors.primaryBlue)
-                            .padding(8)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
+                    HStack {
+                        // 🧪 TEST BUTONU (Sadece Debug modunda veya Simülatörde görünsün)
+                        Button {
+                            viewModel
+                                .debugSimulateRecording(context: modelContext)
+                        } label: {
+                            Image(systemName: "bolt.fill") // Şimşek ikonu
+                                .foregroundStyle(.yellow)
+                                .padding(8)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                        }
+                                    
+                        // MEVCUT AYARLAR BUTONU
+                        Button {
+                            viewModel.showSettings = true
+                        } label: {
+                            Image(systemName: AppConstants.Icons.gear)
+                                .foregroundStyle(
+                                    DesignSystem.Colors.primaryBlue
+                                )
+                                .padding(8)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                        }
                     }
                 }
             }
         }
-        // TAM EKRAN HARİTA MODU
         .fullScreenCover(isPresented: $viewModel.showMindMap) {
-            MindMapSheetView(notes: filteredNotes)
+            MindMapSheetView(
+                notes: viewModel.filteredNotes
+            ) // Haritaya da filtrelenmişleri veriyoruz
         }
-        // AYARLAR SAYFASI
         .sheet(isPresented: $viewModel.showSettings) {
             SettingsView()
         }
-        // KAYIT BİTİNCE ÇALIŞIR
         .onChange(of: viewModel.audioManager.audioURL) { oldValue, newURL in
             if let url = newURL {
                 viewModel.processAudio(url: url, context: modelContext)
             }
         }
-        // DIŞARIDAN TETİKLEME (URL SCHEME)
-        .onOpenURL { url in
-            viewModel.handleDeepLink(url: url)
-        }
-        // AÇILIŞ İŞLEMLERİ
+        .onOpenURL { url in viewModel.handleDeepLink(url: url) }
         .onAppear {
-            // Share Extension'dan gelenleri işle
             viewModel.processPendingNotes(allNotes: allNotes)
+            // Sayfa açılınca aramayı başlat (Tüm notları gösterir)
+            viewModel.triggerSearch(with: allNotes)
         }
-        // İNTERNET UYARISI
+        // 👇 TETİKLEYİCİLER: Veri değiştiğinde aramayı yenile
+        .onChange(of: viewModel.searchText) { _, _ in
+            viewModel.triggerSearch(with: allNotes)
+        }
+        .onChange(of: viewModel.selectedType) { _, _ in
+            viewModel.triggerSearch(with: allNotes)
+        }
+        .onChange(of: allNotes) { _, newNotes in
+            print("🔄 Veritabanı değişti: \(newNotes.count) not bulundu.")
+            viewModel.triggerSearch(with: newNotes)
+        }
         .alert("Bağlantı Hatası", isPresented: $viewModel.showNetworkAlert) {
             Button(AppConstants.Texts.Actions.ok, role: .cancel) { }
         } message: {
@@ -105,10 +111,8 @@ struct HomeView: View {
     
     // MARK: - UI BİLEŞENLERİ
     
-    // Arama Çubuğu ve Filtreler
     private var headerSection: some View {
         VStack(spacing: 12) {
-            // Arama Çubuğu ve Harita Butonu
             HStack(spacing: 12) {
                 HStack {
                     Image(systemName: AppConstants.Icons.magnifyingGlass)
@@ -134,7 +138,6 @@ struct HomeView: View {
                 .background(.ultraThinMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 
-                // Harita Açma Butonu
                 Button {
                     viewModel.showMindMap = true
                 } label: {
@@ -148,7 +151,6 @@ struct HomeView: View {
             }
             .padding(.horizontal)
             
-            // Kategori Çipleri
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     FilterChip(
@@ -173,7 +175,6 @@ struct HomeView: View {
         .padding(.bottom, 8)
     }
     
-    // Boş Durum
     private var emptyStateView: some View {
         VStack(spacing: 24) {
             Spacer()
@@ -202,7 +203,6 @@ struct HomeView: View {
         }
     }
     
-    // Sonuç Bulunamadı
     private var noResultsView: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -217,11 +217,11 @@ struct HomeView: View {
         }
     }
     
-    // Not Listesi
     private var notesScrollView: some View {
         ScrollView {
+            // DİKKAT: Burada filteredNotes yerine viewModel.filteredNotes kullanılıyor
             LazyVStack(spacing: 16) {
-                ForEach(filteredNotes) { note in
+                ForEach(viewModel.filteredNotes) { note in
                     NavigationLink(destination: NoteDetailView(note: note)) {
                         VoiceNoteCard(note: note)
                     }
@@ -243,7 +243,6 @@ struct HomeView: View {
         }
     }
     
-    // Yüzen Kayıt Paneli
     private var floatingRecordingBar: some View {
         HStack {
             if viewModel.audioManager.isRecording {
@@ -324,6 +323,11 @@ struct HomeView: View {
     }
 }
 
+// Yardımcı bileşenler (FilterChip, PulsingBlob, MindMapSheetView)
+// aynı kaldığı için buraya tekrar kopyalamadım, onları değiştirme.
+// Eğer dosyanın tamamını değiştireceksen eski dosyadaki o alt kısımları (class bittikten sonraki kısımları)
+// kopyalayıp buraya eklemeyi unutma.
+
 // MARK: - YARDIMCI BİLEŞENLER
 
 struct FilterChip: View {
@@ -357,21 +361,22 @@ struct FilterChip: View {
 }
 
 struct PulsingBlob: View {
-    @State private var animate = false
+    @State private var scale: CGFloat = 1.0
+    @State private var opacity: Double = 0.5
     
     var body: some View {
         Circle()
             .fill(DesignSystem.Gradients.recordingAction)
             .frame(width: 60, height: 60)
-            .scaleEffect(animate ? 2.0 : 1.0)
-            .opacity(animate ? 0.0 : 0.5)
+            .scaleEffect(scale)
+            .opacity(opacity)
             .onAppear {
-                animate = false
                 withAnimation(
-                    .easeOut(duration: AppConstants.Animation.blobDuration)
+                    .easeOut(duration: 1.5)
                     .repeatForever(autoreverses: false)
                 ) {
-                    animate = true
+                    scale = 2.5
+                    opacity = 0.0
                 }
             }
     }
