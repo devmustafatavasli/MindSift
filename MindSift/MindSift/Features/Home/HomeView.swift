@@ -392,67 +392,80 @@ struct MindMapSheetView: View {
     @State private var currentMagnification: CGFloat = 1.0
     
     var body: some View {
-        ZStack {
-            MeshBackground().ignoresSafeArea()
-            
-            GeometryReader { geo in
-                ZStack {
-                    MindMapView(notes: notes)
-                        .frame(width: 1500, height: 1500)
-                        .contentShape(Rectangle())
-                        .scaleEffect(mapScale * currentMagnification)
-                        .offset(
-                            x: mapOffset.width + currentDragOffset.width,
-                            y: mapOffset.height + currentDragOffset.height
-                        )
-                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
-                        .gesture(
-                            DragGesture()
-                                .onChanged {
-                                    val in currentDragOffset = val.translation
-                                }
-                                .onEnded { val in
-                                    mapOffset.width += val.translation.width
-                                    mapOffset.height += val.translation.height
-                                    currentDragOffset = .zero
-                                }
-                        )
-                        .simultaneousGesture(
-                            MagnificationGesture()
-                                .onChanged { val in currentMagnification = val }
-                                .onEnded { val in
-                                    mapScale *= val
-                                    currentMagnification = 1.0
-                                }
-                        )
-                }
-            }
-            
-            VStack {
-                HStack {
-                    Spacer()
-                    Button { dismiss() } label: {
-                        Image(systemName: AppConstants.Icons.xmarkCircle)
-                            .font(.largeTitle)
-                            .foregroundStyle(.secondary)
-                            .padding()
+        // 👇 DÜZELTME 1: NavigationStack eklendi. Linkler artık çalışacak.
+        NavigationStack {
+            ZStack {
+                MeshBackground().ignoresSafeArea()
+                
+                GeometryReader { geo in
+                    ZStack {
+                        MindMapView(notes: notes)
+                            .frame(width: 1500, height: 1500)
+                            .contentShape(Rectangle())
+                            .scaleEffect(mapScale * currentMagnification)
+                            .offset(
+                                x: mapOffset.width + currentDragOffset.width,
+                                y: mapOffset.height + currentDragOffset.height
+                            )
+                            .position(
+                                x: geo.size.width / 2,
+                                y: geo.size.height / 2
+                            )
+                            .gesture(
+                                DragGesture()
+                                    .onChanged {
+                                        val in currentDragOffset = val.translation
+                                    }
+                                    .onEnded { val in
+                                        mapOffset.width += val.translation.width
+                                        mapOffset.height += val.translation.height
+                                        currentDragOffset = .zero
+                                    }
+                            )
+                            .simultaneousGesture(
+                                MagnificationGesture()
+                                    .onChanged {
+                                        val in currentMagnification = val
+                                    }
+                                    .onEnded { val in
+                                        mapScale *= val
+                                        currentMagnification = 1.0
+                                    }
+                            )
                     }
                 }
-                Spacer()
-            }
-            
-            VStack {
-                Spacer()
-                HStack {
+                
+                // Kapatma Butonu
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button { dismiss() } label: {
+                            Image(systemName: AppConstants.Icons.xmarkCircle)
+                                .font(.largeTitle)
+                                .foregroundStyle(.secondary)
+                                .padding()
+                        }
+                    }
                     Spacer()
-                    mapControls
-                        .padding(.trailing, 20)
-                        .padding(.bottom, 50)
+                }
+                
+                // Kontrol Butonları
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        mapControls
+                            .padding(.trailing, 20)
+                            .padding(.bottom, 50)
+                    }
                 }
             }
+            // Navigation Bar'ı gizle ki tam ekran deneyimi bozulmasın
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
     
+    // ... (mapControls aynı kalıyor) ...
     private var mapControls: some View {
         VStack(spacing: 12) {
             Button(
