@@ -2,52 +2,69 @@
 //  MindSiftWidgetLiveActivity.swift
 //  MindSiftWidget
 //
-//  Created by Mustafa TAVASLI on 24.11.2025.
+//  Created by Mustafa TAVASLI on 8.12.2025.
 //
 
 import ActivityKit
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 struct MindSiftWidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: MindSiftAttributes.self) { context in
-            // 1. KİLİT EKRANI (Lock Screen)
+            // ------------------------------------------------
+            // 1. KİLİT EKRANI (LOCK SCREEN) GÖRÜNÜMÜ
+            // ------------------------------------------------
             HStack {
-                Image(systemName: "waveform.circle.fill")
-                    .font(.largeTitle)
-                    .foregroundStyle(.red)
-                    .symbolEffect(.pulse, isActive: true)
+                // Sol: İkon ve Dalga
+                ZStack {
+                    Circle()
+                        .fill(Color.red.opacity(0.2))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: "waveform")
+                        .font(.title2)
+                        .foregroundStyle(.red)
+                        .symbolEffect(
+                            .variableColor.iterative,
+                            options: .repeating
+                        )
+                }
                 
                 VStack(alignment: .leading) {
-                    Text("MindSift")
+                    Text(context.attributes.activityName)
                         .font(.headline)
+                        .foregroundStyle(.white)
                     Text(context.state.status)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.8))
                 }
                 
                 Spacer()
                 
-                // Kronometre (timer stili otomatik sayar)
+                // Sağ: Süre Sayacı
                 Text(context.state.timer, style: .timer)
-                    .font(.monospacedDigit(.body)())
-                    .foregroundStyle(.blue)
+                    .font(.system(.title2, design: .monospaced))
+                    .foregroundStyle(.yellow)
+                    .fontWeight(.bold)
             }
             .padding()
             .activityBackgroundTint(Color.black.opacity(0.8))
+            .activitySystemActionForegroundColor(Color.white)
 
         } dynamicIsland: { context in
-            // 2. DYNAMIC ISLAND
+            // ------------------------------------------------
+            // 2. DYNAMIC ISLAND (ADA) GÖRÜNÜMLERİ
+            // ------------------------------------------------
             DynamicIsland {
-                // A. Genişletilmiş (Basılı tutunca)
+                // A. GENİŞLETİLMİŞ MOD (EXPANDED) - Uzun basınca açılır
                 DynamicIslandExpandedRegion(.leading) {
                     HStack {
                         Image(systemName: "mic.fill")
                             .foregroundStyle(.red)
-                        Text(context.state.status)
+                        Text("Kayıt")
                             .font(.caption)
-                            .bold()
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.leading, 8)
                 }
@@ -55,40 +72,92 @@ struct MindSiftWidgetLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.state.timer, style: .timer)
                         .font(.monospacedDigit(.body)())
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(.yellow)
                         .padding(.trailing, 8)
                 }
                 
                 DynamicIslandExpandedRegion(.bottom) {
-                    // Ses dalgası animasyonu
-                    HStack(spacing: 4) {
-                        ForEach(0..<8) { index in
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(.red.opacity(0.6))
-                                .frame(width: 4, height: 20)
+                    // Butonlar ve Dalga Formu
+                    VStack(spacing: 12) {
+                        // Sahte Ses Dalgası Animasyonu
+                        HStack(spacing: 4) {
+                            ForEach(0..<10) { _ in
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [.red, .purple],
+                                            startPoint: .bottom,
+                                            endPoint: .top
+                                        )
+                                    )
+                                    .frame(
+                                        width: 4,
+                                        height: CGFloat.random(in: 10...30)
+                                    )
+                            }
                         }
+                        .frame(height: 30)
+                        
+                        // Aksiyon Butonu (Durdur)
+                        Button(intent: StopRecordingIntent()) {
+                            Label(
+                                "Kaydı Bitir",
+                                systemImage: "stop.circle.fill"
+                            )
+                            .font(.headline)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.white.opacity(0.2))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(
+                            .plain
+                        ) // Butonun ada içinde parlamasını engeller
                     }
-                    .frame(height: 30)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
                 }
                 
             } compactLeading: {
-                // B. Küçük Sol İkon
-                Image(systemName: "mic.fill")
-                    .foregroundStyle(.red)
-                    .padding(.leading, 4)
+                // B. KAPALI MOD (SOL)
+                HStack {
+                    Image(systemName: "waveform")
+                        .foregroundStyle(.red)
+                        .symbolEffect(.variableColor, options: .repeating)
+                }
+                .padding(.leading, 4)
                 
             } compactTrailing: {
-                // C. Küçük Sağ Sayaç
+                // C. KAPALI MOD (SAĞ)
                 Text(context.state.timer, style: .timer)
-                    .font(.monospacedDigit(.caption)())
-                    .foregroundStyle(.blue)
-                    .frame(width: 40)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.yellow)
+                    .frame(
+                        width: 40
+                    ) // Genişlik sabitlenmezse titreme yapabilir
                 
             } minimal: {
-                // D. Minimal Görünüm
+                // D. MİNİMAL MOD (Başka uygulama adayı kullanıyorsa)
                 Image(systemName: "mic.fill")
                     .foregroundStyle(.red)
             }
+            .keylineTint(Color.red) // Ada çerçeve rengi
         }
     }
+}
+
+
+#Preview(
+    "Recording State",
+    as: .content,
+    using: MindSiftAttributes(activityName: "MindSift Kaydı")
+) {
+    MindSiftWidgetLiveActivity()
+} contentStates: {
+    MindSiftAttributes.ContentState(status: "Dinliyor...", timer: Date())
+    MindSiftAttributes
+        .ContentState(
+            status: "İşleniyor...",
+            timer: Date().addingTimeInterval(-60)
+        )
 }

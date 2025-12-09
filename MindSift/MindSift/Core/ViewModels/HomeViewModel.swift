@@ -8,53 +8,62 @@
 import Foundation
 import SwiftData
 import SwiftUI
-import Combine
+import Observation
 
-// MARK: - Home View Model
 @MainActor
-class HomeViewModel: ObservableObject {
+@Observable
+class HomeViewModel {
     
     // MARK: - Managers
-    let audioManager = AudioManager()
-    let speechManager = SpeechManager()
+    var audioManager = AudioManager()
+    var speechManager = SpeechManager()
+    var searchManager = SearchManager()
+    
     let calendarManager = CalendarManager()
     let networkManager = NetworkManager()
-    let searchManager = SearchManager()
-    
     private let geminiService = GeminiService()
     
     // MARK: - UI States
-    @Published var isAnalyzing: Bool = false
-    @Published var showSettings: Bool = false
-    @Published var showMindMap: Bool = false
-    @Published var showNetworkAlert: Bool = false
-    @Published var networkErrorMessage: String = ""
+    var isAnalyzing: Bool = false
+    var showSettings: Bool = false
+    var showMindMap: Bool = false
+    var showNetworkAlert: Bool = false
+    var networkErrorMessage: String = ""
     
     // Arama ve Filtreleme
-    @Published var searchText: String = ""
-    @Published var selectedType: NoteType? = nil
-    
-    // 👇 YENİ: Sonuçlar artık burada tutuluyor
-    @Published var filteredNotes: [VoiceNote] = []
+    var searchText: String = ""
+    var selectedType: NoteType? = nil
+    var filteredNotes: [VoiceNote] = []
     
     init() {
         audioManager.checkPermissions()
         speechManager.checkPermissions()
+        
+        // 👇 YENİ: İnternet gelince otomatik tetiklenme
+        networkManager.onStatusChange = { [weak self] isConnected in
+            if isConnected {
+                print(
+                    "🌐 İnternet bağlantısı algılandı. Bekleyen notlar işleniyor..."
+                )
+                self?.processPendingNotes()
+            }
+        }
     }
     
-    // MARK: - Search Logic (Arama Tetikleyici)
+    // MARK: - Search Logic
     
-    // View'dan çağrılacak ana fonksiyon
     func triggerSearch(with allNotes: [VoiceNote]) {
+        guard !searchText.isEmpty || selectedType != nil else {
+            self.filteredNotes = allNotes
+            return
+        }
+        
         Task {
-            // Arama yöneticisini asenkron olarak çağır
             let results = await searchManager.search(
                 query: searchText,
                 notes: allNotes,
                 selectedType: selectedType
             )
-            
-            // Sonuçları güncelle (MainActor sayesinde UI thread'de çalışır)
             self.filteredNotes = results
         }
     }
@@ -73,101 +82,126 @@ class HomeViewModel: ObservableObject {
     }
     
     func processAudio(url: URL, context: ModelContext) {
+        // 1. İnternet Kontrolü
         guard networkManager.isConnected else {
             showNetworkAlert = true
             networkErrorMessage = AppConstants.Texts.Errors.noInternet
-            
-            let newNote = VoiceNote(
-                audioFileName: url.lastPathComponent,
-                transcription: nil,
+            saveFallbackNote(
+                url: url,
+                context: context,
                 title: "Beklemede (İnternet Yok)",
-                summary: "Analiz için internet bağlantısı bekleniyor...",
-                type: .unclassified,
-                isProcessed: false
+                summary: "Analiz için internet bekleniyor."
             )
-            context.insert(newNote)
             return
         }
         
         isAnalyzing = true
         
+        // 2. Ses -> Metin
         speechManager.transcribeAudio(url: url) { [weak self] text in
             guard let self = self else { return }
             
-            guard let text = text, !text.isEmpty else {
+            guard let transcription = text, !transcription.isEmpty else {
+                print(
+                    "⚠️ Transkripsiyon boş döndü, ham ses kaydı oluşturuluyor."
+                )
                 self.isAnalyzing = false
+                self.saveFallbackNote(
+                    url: url,
+                    context: context,
+                    title: "Ses Kaydı",
+                    summary: "Metne çevrilemedi veya konuşma algılanamadı."
+                )
                 return
             }
             
-            self.geminiService.analyzeText(text: text) { result in
+            // 3. Metin -> AI Analiz
+            self.geminiService.analyzeText(text: transcription) { result in
                 DispatchQueue.main.async {
                     self.isAnalyzing = false
                     
                     switch result {
                     case .success(let analysis):
                         self.saveAnalyzedNote(
-                            text: text,
+                            text: transcription,
                             analysis: analysis,
                             audioURL: url,
                             context: context
                         )
                         
                     case .failure(let error):
-                        print("AI Hatası: \(error.localizedDescription)")
-                        let newNote = VoiceNote(
-                            audioFileName: url.lastPathComponent,
-                            transcription: text,
+                        print("❌ AI Hatası: \(error.localizedDescription)")
+                        self.saveFallbackNote(
+                            url: url,
+                            context: context,
                             title: AppConstants.Texts.Errors.analysisFailed,
                             summary: error.localizedDescription,
-                            type: .unclassified
+                            transcription: transcription
                         )
-                        context.insert(newNote)
                     }
                 }
             }
         }
     }
     
-    func processPendingNotes(allNotes: [VoiceNote]) {
+    // 👇 GÜNCEL: Parametresiz, kendi verisini çeken fonksiyon
+    func processPendingNotes() {
         guard networkManager.isConnected else { return }
         
-        let pendingNotes = allNotes.filter { !$0.isProcessed }
+        // Veritabanına doğrudan erişim (View'dan bağımsız)
+        let context = DataController.shared.container.mainContext
         
-        for note in pendingNotes {
-            let appGroupIdentifier = "group.com.devmustafatavasli.MindSift"
-            
-            guard let containerUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
-                return
-            }
-            let fileUrl = containerUrl.appendingPathComponent(
-                note.audioFileName
+        do {
+            // İşlenmemiş notları bul (Fetch)
+            // Not: FetchDescriptor predicate içinde bool kontrolü SwiftData'da bazen hassastır,
+            // bu yüzden en temiz haliyle 'isProcessed == false' arıyoruz.
+            let descriptor = FetchDescriptor<VoiceNote>(
+                predicate: #Predicate { $0.isProcessed == false }
             )
+            let pendingNotes = try context.fetch(descriptor)
             
-            speechManager.transcribeAudio(url: fileUrl) { [weak self] text in
-                guard let self = self, let text = text, !text.isEmpty else {
-                    return
-                }
+            if pendingNotes.isEmpty { return }
+            print("🔄 Bekleyen \(pendingNotes.count) not bulundu, işleniyor...")
+            
+            for note in pendingNotes {
+                let fileUrl = StorageManager.shared.getFileURL(
+                    fileName: note.audioFileName
+                )
                 
-                self.geminiService.analyzeText(text: text) { result in
-                    DispatchQueue.main.async {
-                        switch result {
-                        case .success(let analysis):
-                            self.updateNoteWithAnalysis(
-                                note: note,
-                                text: text,
-                                analysis: analysis
-                            )
-                        case .failure(let error):
-                            print("Pending Process Hatası: \(error)")
+                speechManager
+                    .transcribeAudio(url: fileUrl) { [weak self] text in
+                        guard let self = self, let text = text, !text.isEmpty else {
+                            return
+                        }
+                    
+                        self.geminiService.analyzeText(text: text) { result in
+                            DispatchQueue.main.async {
+                                switch result {
+                                case .success(let analysis):
+                                    self.updateNoteWithAnalysis(
+                                        note: note,
+                                        text: text,
+                                        analysis: analysis
+                                    )
+                                case .failure(let error):
+                                    print("Pending Process Hatası: \(error)")
+                                }
+                            }
                         }
                     }
-                }
             }
+        } catch {
+            print("❌ Bekleyen notlar getirilemedi: \(error)")
         }
     }
     
     func deleteNote(_ note: VoiceNote, context: ModelContext) {
+        StorageManager.shared.deleteFile(fileName: note.audioFileName)
         context.delete(note)
+        
+        if let index = filteredNotes.firstIndex(where: { $0.id == note.id }) {
+            filteredNotes.remove(at: index)
+        }
     }
     
     // MARK: - Private Helpers
@@ -178,14 +212,11 @@ class HomeViewModel: ObservableObject {
         audioURL: URL,
         context: ModelContext
     ) {
-        // Asenkron işlem (Embedding)
         Task {
-            // 1. Vektör Oluştur
             let vector = await EmbeddingManager.shared.generateEmbedding(
                 from: text
             )
             
-            // 2. Kaydet (Main Thread)
             await MainActor.run {
                 let type = NoteType(rawValue: analysis.type) ?? .unclassified
                 let eventDate = parseDate(from: analysis.event_date)
@@ -210,16 +241,38 @@ class HomeViewModel: ObservableObject {
                     emailBody: analysis.email_body,
                     smartIcon: analysis.suggested_icon,
                     smartColor: analysis.suggested_color,
-                    embedding: vector, // ✨ Vektör Kaydı
+                    embedding: vector,
                     type: type,
                     isProcessed: true
                 )
+                
                 context.insert(newNote)
-                print(
-                    "💾 VERİTABANI ONAYI: Not kaydedildi. Vektör Boyutu: \(vector?.count ?? 0)"
-                )
+                try? context.save()
+                self.filteredNotes.insert(newNote, at: 0)
+                print("💾 BAŞARILI: Not kaydedildi: \(analysis.title)")
             }
         }
+    }
+    
+    private func saveFallbackNote(
+        url: URL,
+        context: ModelContext,
+        title: String,
+        summary: String,
+        transcription: String? = nil
+    ) {
+        let newNote = VoiceNote(
+            audioFileName: url.lastPathComponent,
+            transcription: transcription,
+            title: title,
+            summary: summary,
+            type: .unclassified,
+            isProcessed: false
+        )
+        context.insert(newNote)
+        try? context.save()
+        self.filteredNotes.insert(newNote, at: 0)
+        print("💾 FALLBACK: Yedek not kaydedildi.")
     }
     
     private func updateNoteWithAnalysis(
@@ -227,7 +280,6 @@ class HomeViewModel: ObservableObject {
         text: String,
         analysis: AIAnalysisResult
     ) {
-        // Güncelleme sırasında da vektör oluşturulmalı
         Task {
             let vector = await EmbeddingManager.shared.generateEmbedding(
                 from: text
@@ -244,8 +296,9 @@ class HomeViewModel: ObservableObject {
                 note.smartIcon = analysis.suggested_icon
                 note.smartColor = analysis.suggested_color
                 note.eventDate = parseDate(from: analysis.event_date)
-                note.embedding = vector // ✨
+                note.embedding = vector
                 note.isProcessed = true
+                try? note.modelContext?.save()
             }
         }
     }
@@ -273,25 +326,16 @@ class HomeViewModel: ObservableObject {
         return nil
     }
     
-    // MARK: - 🧪 DEBUG / TEST (Simülatör İçin)
-        
-    /// Simülatörde mikrofon çalışmadığı için sistemi manuel test etmemizi sağlar.
     func debugSimulateRecording(context: ModelContext) {
         let testText = "Yarın sabah 9'da proje sunumu için ekiple toplantı yapmam lazım."
-        print("🧪 Test Başlatıldı: Metin sisteme enjekte ediliyor...")
-            
-        // Sanki kayıt bitmiş ve metne çevrilmiş gibi davran
+        print("🧪 Test Başlatıldı...")
         self.isAnalyzing = true
             
-        // Doğrudan Gemini analizine gönder
         self.geminiService.analyzeText(text: testText) { result in
             DispatchQueue.main.async {
                 self.isAnalyzing = false
-                    
                 switch result {
                 case .success(let analysis):
-                    print("✅ Gemini Analizi Başarılı. Kaydediliyor...")
-                    // Rastgele bir dosya ismi uydur
                     let fakeURL = URL(fileURLWithPath: "debug_audio.m4a")
                     self.saveAnalyzedNote(
                         text: testText,
@@ -299,7 +343,6 @@ class HomeViewModel: ObservableObject {
                         audioURL: fakeURL,
                         context: context
                     )
-                        
                 case .failure(let error):
                     print("❌ Gemini Test Hatası: \(error.localizedDescription)")
                 }

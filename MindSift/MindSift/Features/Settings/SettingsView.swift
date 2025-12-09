@@ -5,7 +5,6 @@
 //  Created by Mustafa TAVASLI on 25.11.2025.
 //
 
-
 import SwiftUI
 import SwiftData
 import AuthenticationServices
@@ -14,17 +13,22 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     
-    // 👇 ViewModel Bağlantısı
-    @StateObject private var viewModel = SettingsViewModel()
+    // 1. DEĞİŞİKLİK: @StateObject yerine @State
+    // iOS 17+ Observation framework'ü
+    @State private var viewModel = SettingsViewModel()
     
-    // Kullanıcı Tercihleri (Basit veri olduğu için View'da kalabilir veya ViewModel'e wrapper yazılabilir)
     @AppStorage("is24HourTime") private var is24HourTime = true
     
     var body: some View {
+        // 2. DEĞİŞİKLİK: Binding işlemi için @Bindable (Alert için gerekli)
+        @Bindable var viewModel = viewModel
+        
         NavigationStack {
             Form {
                 // 1. GENEL
-                Section(header: Text(AppConstants.Texts.Settings.sectionGeneral)) {
+                Section(
+                    header: Text(AppConstants.Texts.Settings.sectionGeneral)
+                ) {
                     Toggle(
                         AppConstants.Texts.Settings.toggle24Hour,
                         isOn: $is24HourTime
@@ -33,7 +37,9 @@ struct SettingsView: View {
                 }
                 
                 // 2. HESAP
-                Section(header: Text(AppConstants.Texts.Settings.sectionAccount)) {
+                Section(
+                    header: Text(AppConstants.Texts.Settings.sectionAccount)
+                ) {
                     HStack(spacing: 12) {
                         Image(
                             systemName: viewModel.authManager.isSignedIn ? AppConstants.Icons.personCropCircleCheck : AppConstants.Icons.personCropCircle
@@ -131,4 +137,3 @@ struct SettingsView: View {
         }
     }
 }
-

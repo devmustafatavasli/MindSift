@@ -19,13 +19,26 @@ enum NoteType: String, Codable, CaseIterable {
     
     var iconName: String {
         switch self {
-        case .meeting: return "calendar"
+        case .meeting: return "person.3.sequence.fill"
         case .task: return "checklist"
         case .email: return "envelope.fill"
-        case .idea: return "lightbulb"
-        case .diary: return "book.closed"
+        case .idea: return "lightbulb.fill"
+        case .diary: return "book.closed.fill"
         case .travel: return "airplane.departure"
         case .unclassified: return "recordingtape"
+        }
+    }
+    
+    // Pinterest kartlarında kullanacağımız HEX renkler
+    var colorHex: String {
+        switch self {
+        case .meeting: return "#5DADE2" // Mavi
+        case .task: return "#E74C3C"    // Kırmızı
+        case .email: return "#F39C12"   // Turuncu
+        case .idea: return "#F1C40F"    // Sarı
+        case .diary: return "#AF7AC5"   // Mor
+        case .travel: return "#48C9B0"  // Turkuaz
+        case .unclassified: return "#95A5A6" // Gri
         }
     }
 }
@@ -46,12 +59,14 @@ final class VoiceNote {
     var smartIcon: String?
     var smartColor: String?
     
-    // Metnin vektörel olarak sayısal karşılığını tutacağız.
     var embedding: [Float]?
     
     var createdAt: Date
     var type: NoteType
     var isProcessed: Bool
+    
+    var isCompleted: Bool
+    var isFavorite: Bool
     
     init(id: UUID = UUID(),
          audioFileName: String,
@@ -67,8 +82,10 @@ final class VoiceNote {
          embedding: [Float]? = nil,
          createdAt: Date = Date(),
          type: NoteType = .unclassified,
-         isProcessed: Bool = false) {
-        
+         isProcessed: Bool = false,
+         isCompleted: Bool = false,
+         isFavorite: Bool = false
+    ) {
         self.id = id
         self.audioFileName = audioFileName
         self.transcription = transcription
@@ -84,5 +101,7 @@ final class VoiceNote {
         self.createdAt = createdAt
         self.type = type
         self.isProcessed = isProcessed
+        self.isCompleted = isCompleted
+        self.isFavorite = isFavorite
     }
 }

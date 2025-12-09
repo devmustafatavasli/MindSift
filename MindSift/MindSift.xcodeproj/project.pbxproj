@@ -83,7 +83,10 @@
 		BC12FF4D2ED4C8C300396CA8 /* Exceptions for "MindSift" folder in "MindSiftWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Core/Intents/AudioIntents.swift,
 				Core/MindSiftAttributes.swift,
+				Core/Utils/AppConstants.swift,
+				Core/Utils/HapticManager.swift,
 			);
 			target = BC12FF2F2ED4C87600396CA8 /* MindSiftWidgetExtension */;
 		};
@@ -104,8 +107,12 @@
 		BC12FF7F2EDE3D7F00396CA8 /* Exceptions for "MindSift" folder in "MindSiftShare" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Core/Data/DataController.swift,
 				Core/Data/VoiceNote.swift,
+				Core/Managers/StorageManager.swift,
+				Core/Utils/AppConstants.swift,
 				Core/Utils/DesignSystem.swift,
+				Core/Utils/HapticManager.swift,
 			);
 			target = BC12FF6D2EDE3CE900396CA8 /* MindSiftShare */;
 		};

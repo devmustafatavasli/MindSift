@@ -8,15 +8,16 @@
 import Foundation
 import SwiftData
 import SwiftUI
-import Combine
+import Observation // 👈 YENİ
 
 @MainActor
-class SettingsViewModel: ObservableObject {
-    // Auth Manager'a erişim
-    let authManager = AuthenticationManager()
+@Observable // 👈 ARTIK BU VAR
+class SettingsViewModel {
+    // Auth Manager'a erişim (Değişiklikler otomatik izlenir)
+    var authManager = AuthenticationManager()
     
     // UI Durumları
-    @Published var showDeleteAlert = false
+    var showDeleteAlert = false
     
     // Verileri Silme Mantığı
     func deleteAllData(context: ModelContext) {

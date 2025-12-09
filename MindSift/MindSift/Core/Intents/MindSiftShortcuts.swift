@@ -10,7 +10,7 @@ import SwiftUI
 
 // 1. Kestirme Tanımı (Intent)
 struct StartRecordingIntent: AppIntent {
-    static var title: LocalizedStringResource = "Sesli Not Al"
+    static var title: LocalizedStringResource = "MindSift ile Not Al"
     static var description = IntentDescription("MindSift uygulamasını açar ve hemen ses kaydına başlar.")
     static var openAppWhenRun: Bool = true // Uygulamayı ön plana getir
     

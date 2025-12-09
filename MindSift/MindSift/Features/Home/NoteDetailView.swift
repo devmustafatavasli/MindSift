@@ -8,15 +8,23 @@
 import SwiftUI
 
 struct NoteDetailView: View {
-    @StateObject private var viewModel: NoteDetailViewModel
+    // 1. DEĞİŞİKLİK: @StateObject yerine @State
+    // iOS 17+ Observation framework'ü ile class'ları @State içinde tutabiliriz.
+    @State private var viewModel: NoteDetailViewModel
+    
     @Environment(\.dismiss) var dismiss
     
-    // Dependency Injection: Notu alıp ViewModel'i başlatıyoruz
+    // Dependency Injection
     init(note: VoiceNote) {
-        _viewModel = StateObject(wrappedValue: NoteDetailViewModel(note: note))
+        // 2. DEĞİŞİKLİK: StateObject yerine State(initialValue:)
+        _viewModel = State(initialValue: NoteDetailViewModel(note: note))
     }
     
     var body: some View {
+        // 3. DEĞİŞİKLİK: Binding işlemi için @Bindable
+        // Bu satır sayesinde $viewModel.showShareSheet gibi bağlamaları yapabiliriz.
+        @Bindable var viewModel = viewModel
+        
         ZStack {
             DesignSystem.Gradients.primaryAction
                 .opacity(0.05)
@@ -78,13 +86,15 @@ struct NoteDetailView: View {
                             
                             VStack(spacing: 4) {
                                 Slider(
-value: Binding(
-    get: {
-        viewModel.playerManager.currentTime
-    },
-    set: { viewModel.playerManager.seek(to: $0) }
-),
-in: 0...viewModel.playerManager.duration
+                                    value: Binding(
+                                        get: {
+                                            viewModel.playerManager.currentTime
+                                        },
+                                        set: {
+                                            viewModel.playerManager.seek(to: $0)
+                                        }
+                                    ),
+                                    in: 0...viewModel.playerManager.duration
                                 )
                                 .tint(viewModel.accentColor)
                                 

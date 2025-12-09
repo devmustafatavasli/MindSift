@@ -7,23 +7,20 @@
 
 import Foundation
 import EventKit
-import Combine
+import Observation // 👈 YENİ
 
-// MARK: - Calendar Manager
-// Görevi: Apple Takvimi ile konuşmak ve etkinlik eklemek.
-
-class CalendarManager: ObservableObject {
+@Observable // 👈 ARTIK BU VAR
+class CalendarManager {
     
     private let eventStore = EKEventStore()
     
-    @Published var hasPermission: Bool = false
-    @Published var errorMessage: String?
+    var hasPermission: Bool = false
+    var errorMessage: String?
     
     init() {
         checkPermissions()
     }
     
-    // 1. İzin İsteme
     func checkPermissions() {
         switch EKEventStore.authorizationStatus(for: .event) {
         case .authorized:
@@ -49,7 +46,6 @@ class CalendarManager: ObservableObject {
                 }
             }
         } else {
-            // iOS 17 öncesi için
             eventStore.requestAccess(to: .event) { [weak self] granted, error in
                 DispatchQueue.main.async {
                     self?.hasPermission = granted
@@ -58,7 +54,6 @@ class CalendarManager: ObservableObject {
         }
     }
     
-    // 2. Etkinlik Ekleme Fonksiyonu
     func addEvent(title: String, date: Date, notes: String?) {
         guard hasPermission else {
             self.errorMessage = "Takvim izni yok."
@@ -68,7 +63,6 @@ class CalendarManager: ObservableObject {
         let event = EKEvent(eventStore: eventStore)
         event.title = title
         event.startDate = date
-        // Varsayılan olarak etkinlik 1 saat sürsün
         event.endDate = date.addingTimeInterval(3600)
         event.notes = notes
         event.calendar = eventStore.defaultCalendarForNewEvents

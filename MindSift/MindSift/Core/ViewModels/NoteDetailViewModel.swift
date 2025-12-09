@@ -5,34 +5,41 @@
 //  Created by Mustafa TAVASLI on 2.12.2025.
 //
 
-
 import SwiftUI
 import AVFoundation
-import Combine
+import Observation // 👈 YENİ: iOS 17+ Modern İzleme Framework'ü
 
 @MainActor
-class NoteDetailViewModel: ObservableObject {
+@Observable // 👈 ARTIK BU VAR (ObservableObject yerine)
+class NoteDetailViewModel {
+    
     let note: VoiceNote
     
     // Yöneticiler
-    @Published var playerManager = AudioPlayerManager()
+    // @Published YOK. AudioPlayerManager da @Observable olduğu için,
+    // SwiftUI içindeki değişiklikleri (süre, oynatma durumu) otomatik algılar.
+    var playerManager = AudioPlayerManager()
     
     // UI Durumları
-    @Published var showShareSheet = false
-    @Published var showAlert = false
-    @Published var alertMessage = ""
+    // Düz değişkenler artık otomatik izleniyor.
+    var showShareSheet = false
+    var showAlert = false
+    var alertMessage = ""
     
     init(note: VoiceNote) {
         self.note = note
     }
     
     func onAppear() {
+        // Audio dosya isminden kurulumu başlat
         playerManager.setupPlayer(audioFileName: note.audioFileName)
     }
     
     func onDisappear() {
+        // Sayfadan çıkınca çalıyorsa durdur
         if playerManager.isPlaying {
-            playerManager.playPause()
+            playerManager
+                .stop() // playPause yerine stop() daha temiz bir temizlik yapar
         }
     }
     
@@ -49,12 +56,20 @@ class NoteDetailViewModel: ObservableObject {
     
     // 📧 Mail Mantığı
     func openMailApp() {
-        guard let subject = note.emailSubject, let body = note.emailBody else { return }
+        guard let subject = note.emailSubject, let body = note.emailBody else {
+            return
+        }
         
-        let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let encodedSubject = subject.addingPercentEncoding(
+            withAllowedCharacters: .urlQueryAllowed
+        ) ?? ""
+        let encodedBody = body.addingPercentEncoding(
+            withAllowedCharacters: .urlQueryAllowed
+        ) ?? ""
         
-        if let url = URL(string: "mailto:?subject=\(encodedSubject)&body=\(encodedBody)") {
+        if let url = URL(
+            string: "mailto:?subject=\(encodedSubject)&body=\(encodedBody)"
+        ) {
             if UIApplication.shared.canOpenURL(url) {
                 UIApplication.shared.open(url)
             } else {

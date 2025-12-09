@@ -12,16 +12,35 @@ struct MindMapView: View {
     let notes: [VoiceNote]
     
     @State private var positions: [UUID: CGPoint] = [:]
-    // 👇 YENİ: Seçili notu tutarak navigasyonu tetikleyeceğiz
     @State private var selectedNote: VoiceNote?
+    
+    // 👇 GÜNCELLEME: Yörünge yarıçapını küçülttük (0.35 -> 0.22)
+    // Böylece kategoriler ekranın dışına taşmak yerine merkeze toplanacak.
+    private func getCategoryCenter(type: NoteType, in size: CGSize) -> CGPoint {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let radius = min(size.width, size.height) * 0.22
+        
+        let allTypes = NoteType.allCases
+        guard let index = allTypes.firstIndex(of: type) else { return center }
+        
+        let angleStep = (2 * CGFloat.pi) / CGFloat(allTypes.count)
+        let angle = angleStep * CGFloat(index) - (CGFloat.pi / 2)
+        
+        return CGPoint(
+            x: center.x + radius * cos(angle),
+            y: center.y + radius * sin(angle)
+        )
+    }
     
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Bağlantı Çizgileri
+                if !notes.isEmpty {
+                    categoryLabelsView(in: geometry.size)
+                }
+                
                 connectionsView
                 
-                // Düğümler
                 ForEach(notes) { note in
                     if let position = positions[note.id] {
                         MindMapNode(note: note)
@@ -33,9 +52,7 @@ struct MindMapView: View {
                                 ),
                                 value: position
                             )
-                        // 👇 DÜZELTME 2: Tap Gesture ile kesin algılama
                             .onTapGesture {
-                                print("Tıklandı: \(note.title ?? "")")
                                 selectedNote = note
                             }
                     }
@@ -43,14 +60,27 @@ struct MindMapView: View {
             }
             .onAppear { startSimulation(in: geometry.size) }
             .onChange(of: notes) { _, _ in startSimulation(in: geometry.size) }
-            // 👇 DÜZELTME 3: Programatik Navigasyon
             .navigationDestination(item: $selectedNote) { note in
                 NoteDetailView(note: note)
             }
         }
     }
     
-    // ... (connectionsView AYNI KALACAK) ...
+    // MARK: - Views
+    
+    private func categoryLabelsView(in size: CGSize) -> some View {
+        ForEach(NoteType.allCases, id: \.self) { type in
+            if notes.contains(where: { $0.type == type }) {
+                let center = getCategoryCenter(type: type, in: size)
+                Text(type.rawValue.uppercased())
+                    .font(.caption2)
+                    .fontWeight(.heavy)
+                    .foregroundStyle(Color.gray.opacity(0.3))
+                    .position(center)
+            }
+        }
+    }
+    
     private var connectionsView: some View {
         Path { path in
             guard notes.count > 1 else { return }
@@ -58,28 +88,28 @@ struct MindMapView: View {
                 for j in (i+1)..<notes.count {
                     let noteA = notes[i]
                     let noteB = notes[j]
-                    guard let posA = positions[noteA.id], let posB = positions[noteB.id] else {
-                        continue
-                    }
                     
-                    if let vecA = noteA.embedding, let vecB = noteB.embedding {
-                        let similarity = calculateCosineSimilarity(vecA, vecB)
-                        
+                    guard let posA = positions[noteA.id],
+                          let posB = positions[noteB.id],
+                          let vecA = noteA.embedding,
+                          let vecB = noteB.embedding else { continue }
+                    
+                    let similarity = calculateCosineSimilarity(vecA, vecB)
+                    
 #if targetEnvironment(simulator)
-                        let threshold: Float = 0.1
+                    let threshold: Float = 0.6
 #else
-                        let threshold: Float = 0.75
+                    let threshold: Float = 0.70
 #endif
-                        
-                        if similarity > threshold {
-                            path.move(to: posA)
-                            path.addLine(to: posB)
-                        }
+                    
+                    if similarity > threshold {
+                        path.move(to: posA)
+                        path.addLine(to: posB)
                     }
                 }
             }
         }
-        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        .stroke(Color.gray.opacity(0.3), lineWidth: 1.5)
     }
     
     // MARK: - Force-Directed Simulation Logic
@@ -88,22 +118,22 @@ struct MindMapView: View {
         guard !notes.isEmpty else { return }
         
         var currentPositions: [UUID: CGPoint] = [:]
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
         
         for note in notes {
             if let existing = positions[note.id] {
                 currentPositions[note.id] = existing
             } else {
-                let randomX = CGFloat.random(in: -50...50) + center.x
-                let randomY = CGFloat.random(in: -50...50) + center.y
+                let targetCenter = getCategoryCenter(type: note.type, in: size)
+                let randomX = CGFloat.random(in: -20...20) + targetCenter.x
+                let randomY = CGFloat.random(in: -20...20) + targetCenter.y
                 currentPositions[note.id] = CGPoint(x: randomX, y: randomY)
             }
         }
         self.positions = currentPositions
         
         Task {
-            for _ in 0..<60 {
-                try? await Task.sleep(nanoseconds: 15_000_000)
+            for _ in 0..<120 {
+                try? await Task.sleep(nanoseconds: 10_000_000)
                 await MainActor.run {
                     self.positions = runForceIteration(
                         currentPositions: self.positions,
@@ -116,16 +146,14 @@ struct MindMapView: View {
     
     private func runForceIteration(currentPositions: [UUID: CGPoint], size: CGSize) -> [UUID: CGPoint] {
         var newPositions = currentPositions
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        
-        // 👇 DÜZELTME 4: Fizik Parametrelerini Güncelledik (Daha geniş alan)
-        let repulsionForce: CGFloat = 8000.0 // 5000 -> 8000 (Daha fazla itme)
-        let springLength: CGFloat = 150.0    // 120 -> 150 (Daha uzun bağlar)
-        let attractionFactor: CGFloat = 0.8
-        let centerGravity: CGFloat = 0.05    // 0.08 -> 0.05 (Merkeze daha az yapışsınlar)
-        
         var velocities: [UUID: CGPoint] = [:]
         for note in notes { velocities[note.id] = .zero }
+        
+        // 👇 GÜNCELLEME: Fizik Kuralları (Daha kompakt yapı)
+        let repulsionForce: CGFloat = 3500.0 // (Eski: 6000) Daha az itme, daha sıkı duruş
+        let springLength: CGFloat = 80.0     // (Eski: 150) Bağlı notlar birbirine daha yakın
+        let attractionForce: CGFloat = 0.08
+        let categoryGravity: CGFloat = 0.12  // (Eski: 0.08) Kategorisine daha sıkı tutunsun
         
         // A. İtme
         for i in 0..<notes.count {
@@ -140,6 +168,8 @@ struct MindMapView: View {
                 let dy = posA.y - posB.y
                 let distance = sqrt(dx*dx + dy*dy) + 0.1
                 
+                if distance > 300 { continue }
+                
                 let force = repulsionForce / (distance * distance)
                 let fx = (dx / distance) * force
                 let fy = (dy / distance) * force
@@ -151,7 +181,7 @@ struct MindMapView: View {
             }
         }
         
-        // B. Çekim
+        // B. Çekim (Bağlantılar)
         for i in 0..<notes.count {
             let nodeA = notes[i]
             guard let posA = currentPositions[nodeA.id] else { continue }
@@ -160,57 +190,59 @@ struct MindMapView: View {
                 let nodeB = notes[j]
                 guard let posB = currentPositions[nodeB.id] else { continue }
                 
-                var similarity: Float = 0.0
                 if let vecA = nodeA.embedding, let vecB = nodeB.embedding {
-                    similarity = calculateCosineSimilarity(vecA, vecB)
-                }
-                
+                    let similarity = calculateCosineSimilarity(vecA, vecB)
+                    
 #if targetEnvironment(simulator)
-                let threshold: Float = 0.0
+                    let threshold: Float = 0.5
 #else
-                let threshold: Float = 0.6
+                    let threshold: Float = 0.7
 #endif
-                
-                if similarity > threshold {
-                    let dx = posA.x - posB.x
-                    let dy = posA.y - posB.y
-                    let distance = sqrt(dx*dx + dy*dy) + 0.1
                     
-                    let targetDistance = springLength * CGFloat(
-                        1.0 - similarity
-                    )
-                    let displacement = distance - targetDistance
-                    let force = displacement * attractionFactor * CGFloat(
-                        similarity
-                    )
-                    
-                    let fx = (dx / distance) * force
-                    let fy = (dy / distance) * force
-                    
-                    velocities[nodeA.id]!.x -= fx
-                    velocities[nodeA.id]!.y -= fy
-                    velocities[nodeB.id]!.x += fx
-                    velocities[nodeB.id]!.y += fy
+                    if similarity > threshold {
+                        let dx = posB.x - posA.x
+                        let dy = posB.y - posA.y
+                        let distance = sqrt(dx*dx + dy*dy) + 0.1
+                        
+                        let targetDistance = springLength * CGFloat(
+                            1.0 - similarity
+                        )
+                        let displacement = distance - targetDistance
+                        let force = displacement * attractionForce * CGFloat(
+                            similarity
+                        )
+                        
+                        let fx = (dx / distance) * force
+                        let fy = (dy / distance) * force
+                        
+                        velocities[nodeA.id]!.x += fx
+                        velocities[nodeA.id]!.y += fy
+                        velocities[nodeB.id]!.x -= fx
+                        velocities[nodeB.id]!.y -= fy
+                    }
                 }
             }
         }
         
-        // C. Yerçekimi & D. Güncelleme
+        // C. Kategori Yerçekimi
         for note in notes {
             guard let pos = currentPositions[note.id] else { continue }
-            let dx = center.x - pos.x
-            let dy = center.y - pos.y
+            let target = getCategoryCenter(type: note.type, in: size)
             
-            velocities[note.id]!.x += dx * centerGravity
-            velocities[note.id]!.y += dy * centerGravity
+            let dx = target.x - pos.x
+            let dy = target.y - pos.y
             
-            guard let velocity = velocities[note.id] else { continue }
+            velocities[note.id]!.x += dx * categoryGravity
+            velocities[note.id]!.y += dy * categoryGravity
             
-            var newX = pos.x + velocity.x
-            var newY = pos.y + velocity.y
+            guard let v = velocities[note.id] else { continue }
             
-            newX = max(50, min(size.width - 50, newX))
-            newY = max(100, min(size.height - 100, newY))
+            var newX = pos.x + v.x
+            var newY = pos.y + v.y
+            
+            let padding: CGFloat = 60
+            newX = max(padding, min(size.width - padding, newX))
+            newY = max(padding, min(size.height - padding, newY))
             
             newPositions[note.id] = CGPoint(x: newX, y: newY)
         }
@@ -218,7 +250,6 @@ struct MindMapView: View {
         return newPositions
     }
     
-    // ... (calculateCosineSimilarity AYNI KALACAK) ...
     private func calculateCosineSimilarity(_ vectorA: [Float], _ vectorB: [Float]) -> Float {
         guard vectorA.count == vectorB.count else { return 0.0 }
         let count = vDSP_Length(vectorA.count)
@@ -235,19 +266,16 @@ struct MindMapView: View {
     }
 }
 
-// 👇 DÜZELTME 5: NavigationLink kaldırıldı, sadece görsel
+// MARK: - Node View
 struct MindMapNode: View {
     let note: VoiceNote
-    
     var accentColor: Color {
         if let hex = note.smartColor { return Color(hex: hex) }
         return .blue
     }
-    
     var iconName: String { note.smartIcon ?? note.type.iconName }
     
     var body: some View {
-        // NavigationLink YOK, tıklama MindMapView içinde onTapGesture ile yönetiliyor
         VStack(spacing: 8) {
             ZStack {
                 Circle()
@@ -264,7 +292,6 @@ struct MindMapNode: View {
                     .font(.title2)
                     .foregroundStyle(accentColor)
             }
-            
             Text(note.title ?? "Not")
                 .font(.caption)
                 .fontWeight(.bold)
@@ -276,6 +303,6 @@ struct MindMapNode: View {
                 .frame(maxWidth: 120)
                 .lineLimit(1)
         }
-        .contentShape(Rectangle()) // Tıklama alanını garantile
+        .contentShape(Rectangle())
     }
 }

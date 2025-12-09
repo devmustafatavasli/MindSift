@@ -7,58 +7,48 @@
 
 import Foundation
 import AVFoundation
-import Combine
+import Observation
 
-class AudioPlayerManager: NSObject, ObservableObject, AVAudioPlayerDelegate {
+@Observable
+class AudioPlayerManager: NSObject, AVAudioPlayerDelegate {
     
     private var audioPlayer: AVAudioPlayer?
     private var timer: Timer?
     
-    @Published var isPlaying: Bool = false
-    @Published var currentTime: TimeInterval = 0
-    @Published var duration: TimeInterval = 0
-    
-    // 👇 GÜNCELLEME: Kendi App Group ID'ni buraya yaz
-    private let appGroupIdentifier = "group.com.devmustafatavasli.MindSift"
+    var isPlaying: Bool = false
+    var currentTime: TimeInterval = 0
+    var duration: TimeInterval = 0
     
     func setupPlayer(audioFileName: String) {
-        // 1. Önce standart Documents klasörüne bak
-        var url = getDocumentsDirectory().appendingPathComponent(audioFileName)
-        
-        // 2. Eğer dosya orada yoksa, App Group klasörüne bak (Share Extension dosyaları burada)
-        if !FileManager.default.fileExists(atPath: url.path) {
-            if let sharedUrl = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: appGroupIdentifier
-            ) {
-                let potentialUrl = sharedUrl.appendingPathComponent(
-                    audioFileName
-                )
-                if FileManager.default.fileExists(atPath: potentialUrl.path) {
-                    url = potentialUrl
-                }
-            }
-        }
+        // 👇 GÜNCELLEME: Dosya yolunu StorageManager bulsun
+        let url = StorageManager.shared.getFileURL(fileName: audioFileName)
         
         do {
             audioPlayer = try AVAudioPlayer(contentsOf: url)
             audioPlayer?.delegate = self
             audioPlayer?.prepareToPlay()
+            
             self.duration = audioPlayer?.duration ?? 0
             self.currentTime = 0
             self.isPlaying = false
+            
+            print("🎵 Player hazırlandı. Süre: \(self.duration)")
         } catch {
-            print("Ses dosyası bulunamadı veya bozuk: \(url.path)")
+            print("❌ Ses dosyası bulunamadı veya bozuk: \(url.path)")
         }
     }
     
-    // ... (Geri kalan fonksiyonlar: playPause, seek, startTimer, stopTimer, audioPlayerDidFinishPlaying, stop AYNI KALACAK)
-    
     func playPause() {
         guard let player = audioPlayer else { return }
+        
         if player.isPlaying {
-            player.pause(); stopTimer(); isPlaying = false
+            player.pause()
+            stopTimer()
+            isPlaying = false
         } else {
-            player.play(); startTimer(); isPlaying = true
+            player.play()
+            startTimer()
+            isPlaying = true
         }
     }
     
@@ -67,12 +57,20 @@ class AudioPlayerManager: NSObject, ObservableObject, AVAudioPlayerDelegate {
         currentTime = time
     }
     
+    func stop() {
+        audioPlayer?.stop()
+        stopTimer()
+        isPlaying = false
+        currentTime = 0
+        audioPlayer?.currentTime = 0
+    }
+    
     private func startTimer() {
         stopTimer()
-        timer = Timer
-            .scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-                self?.currentTime = self?.audioPlayer?.currentTime ?? 0
-            }
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self = self, let player = self.audioPlayer else { return }
+            self.currentTime = player.currentTime
+        }
     }
     
     private func stopTimer() {
@@ -80,19 +78,10 @@ class AudioPlayerManager: NSObject, ObservableObject, AVAudioPlayerDelegate {
         timer = nil
     }
     
-    func audioPlayerDidFinishPlaying(
-        _ player: AVAudioPlayer,
-        successfully flag: Bool
-    ) {
-        isPlaying = false; stopTimer(); currentTime = 0; player.currentTime = 0
-    }
-    
-    func stop() {
-        audioPlayer?.stop(); stopTimer(); isPlaying = false
-    }
-    
-    private func getDocumentsDirectory() -> URL {
-        FileManager.default
-            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        isPlaying = false
+        stopTimer()
+        currentTime = 0
+        player.currentTime = 0
     }
 }

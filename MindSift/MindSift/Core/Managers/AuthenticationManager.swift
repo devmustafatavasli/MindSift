@@ -5,16 +5,16 @@
 //  Created by Mustafa TAVASLI on 27.11.2025.
 //
 
-
 import Foundation
 import AuthenticationServices
-import Combine
+import Observation // 👈 YENİ
 
-class AuthenticationManager: NSObject, ObservableObject {
+@Observable // 👈 ARTIK BU VAR
+class AuthenticationManager: NSObject {
     
-    @Published var isSignedIn: Bool = false
-    @Published var userIdentifier: String?
-    @Published var userName: String = "Misafir"
+    var isSignedIn: Bool = false
+    var userIdentifier: String?
+    var userName: String = "Misafir"
     
     override init() {
         super.init()
@@ -23,7 +23,6 @@ class AuthenticationManager: NSObject, ObservableObject {
     
     // Giriş Durumunu Kontrol Et
     func checkLoginStatus() {
-        // Basitçe UserDefaults kontrolü (Gerçek projede Keychain kullanılır ama MVP için bu yeterli)
         if let userId = UserDefaults.standard.string(forKey: "userIdentifier") {
             self.userIdentifier = userId
             self.isSignedIn = true
@@ -32,7 +31,6 @@ class AuthenticationManager: NSObject, ObservableObject {
                 self.userName = name
             }
             
-            // Apple ID hala geçerli mi kontrol et
             checkAppleIDCredentialState(userID: userId)
         }
     }
@@ -44,7 +42,6 @@ class AuthenticationManager: NSObject, ObservableObject {
             if let appleIDCredential = auth.credential as? ASAuthorizationAppleIDCredential {
                 let userId = appleIDCredential.user
                 
-                // İsim bilgisi (Sadece ilk girişte gelir, kaydetmek önemli!)
                 if let nameComponents = appleIDCredential.fullName,
                    let givenName = nameComponents.givenName {
                     let name = givenName + " " + (
@@ -54,7 +51,6 @@ class AuthenticationManager: NSObject, ObservableObject {
                     UserDefaults.standard.set(name, forKey: "userName")
                 }
                 
-                // Kullanıcıyı Kaydet
                 self.userIdentifier = userId
                 self.isSignedIn = true
                 
@@ -77,7 +73,7 @@ class AuthenticationManager: NSObject, ObservableObject {
         print("🚪 Çıkış yapıldı.")
     }
     
-    // Apple ID Durumunu Arka Planda Kontrol Et
+    // Apple ID Durumunu Kontrol Et
     private func checkAppleIDCredentialState(userID: String) {
         let appleIDProvider = ASAuthorizationAppleIDProvider()
         appleIDProvider

@@ -7,23 +7,24 @@
 
 import Network
 import SwiftUI
-import Combine
+import Observation
 
-// MARK: - Network Manager
-// Uygulamanın internet bağlantı durumunu takip eder.
-
-class NetworkManager: ObservableObject {
+@Observable
+class NetworkManager {
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "NetworkManager")
     
-    // UI tarafından dinlenen bağlantı durumu
-    @Published var isConnected: Bool = true
+    var isConnected: Bool = true
+    var onStatusChange: ((Bool) -> Void)?
     
     init() {
         monitor.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
-                // .satisfied = İnternet var
-                self?.isConnected = path.status == .satisfied
+                let connected = path.status == .satisfied
+                self?.isConnected = connected
+                
+                // Durum değiştiğinde aboneye haber ver
+                self?.onStatusChange?(connected)
             }
         }
         monitor.start(queue: queue)

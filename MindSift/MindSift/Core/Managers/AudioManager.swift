@@ -8,39 +8,38 @@
 import Foundation
 import AVFoundation
 import ActivityKit
-import Combine
+import Observation
 
-class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
+@Observable
+class AudioManager: NSObject, AVAudioRecorderDelegate {
     
-    @Published var isRecording: Bool = false
-    @Published var audioURL: URL?
-    @Published var errorMessage: String?
+    var isRecording: Bool = false
+    var audioURL: URL?
+    var errorMessage: String?
     
     private var audioRecorder: AVAudioRecorder?
-    
-    // Live Activity Referansı
     private var currentActivity: Activity<MindSiftAttributes>?
     
     override init() {
         super.init()
         checkPermissions()
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(stopRecording), name: NSNotification.Name("StopRecordingFromIsland"), object: nil)
     }
     
     func startRecording() {
         let audioSession = AVAudioSession.sharedInstance()
         
         do {
-            try audioSession
-                .setCategory(
-                    .playAndRecord,
-                    mode: .default,
-                    // allowBluetooth deprecated sorununa MVP sonrası çözüm bulunacak.
-                    options: [.defaultToSpeaker, .allowBluetooth]
-                )
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .default,
+                options: [.defaultToSpeaker, .allowBluetooth]
+            )
             try audioSession.setActive(true)
             
-            let fileName = "voice_note_\(Date().timeIntervalSince1970).m4a"
-            let url = getDocumentsDirectory().appendingPathComponent(fileName)
+            // 👇 GÜNCELLEME: Dosya yolunu StorageManager'dan alıyoruz
+            let url = StorageManager.shared.getNewRecordingURL()
             
             let settings: [String: Any] = [
                 AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
@@ -67,7 +66,7 @@ class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
         }
     }
     
-    func stopRecording() {
+    @objc func stopRecording() {
         audioRecorder?.stop()
         
         DispatchQueue.main.async {
@@ -78,10 +77,9 @@ class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
         print("🛑 Kayıt durdu.")
     }
     
-    // MARK: - Live Activity Yönetimi 🏝️
+    // MARK: - Live Activity
     
     private func startLiveActivity() {
-        // Live Activity verilerini hazırla
         let attributes = MindSiftAttributes(activityName: "Ses Kaydı")
         let contentState = MindSiftAttributes.ContentState(
             status: "Dinliyor...",
@@ -112,7 +110,7 @@ class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
         Task {
             await activity.end(
                 ActivityContent(state: finalState, staleDate: nil),
-                dismissalPolicy: .default // Hemen kapatma, sonucu biraz göster
+                dismissalPolicy: .default
             )
             self.currentActivity = nil
             print("🏝️ Dynamic Island Sonlandırıldı.")
@@ -140,11 +138,6 @@ class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
         }
     }
     
-    private func getDocumentsDirectory() -> URL {
-        FileManager.default
-            .urls(for: .documentDirectory, in: .userDomainMask)[0]
-    }
-    
     func audioRecorderDidFinishRecording(
         _ recorder: AVAudioRecorder,
         successfully flag: Bool
@@ -152,4 +145,3 @@ class AudioManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
         if !flag { stopRecording() }
     }
 }
-

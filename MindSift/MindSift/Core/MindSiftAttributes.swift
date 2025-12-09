@@ -2,19 +2,19 @@
 //  MindSiftAttributes.swift
 //  MindSift
 //
-//  Created by Mustafa TAVASLI on 24.11.2025.
+//  Created by Mustafa TAVASLI on 8.12.2025.
 //
 
 import ActivityKit
-import SwiftUI
+import Foundation
 
 struct MindSiftAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
-        // Dinleme - Düşünme - Kaydetme Aşamaları
+        // Değişken veriler (Süre, Durum)
         var status: String
-        // Kayıt Zaman Sayacı
-        var timer: Date
+        var timer: Date // Kayıt başlangıç zamanı (Sayacı buradan hesaplar)
     }
-    // Aktivitenin Adlandırması
+
+    // Sabit veriler (Başlık vb.)
     var activityName: String
 }

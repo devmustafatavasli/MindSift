@@ -12,95 +12,127 @@ struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VoiceNote.createdAt, order: .reverse) private var allNotes: [VoiceNote]
     
-    @StateObject private var viewModel = HomeViewModel()
+    @State private var viewModel = HomeViewModel()
     
-    // Eski "computed property" filteredNotes silindi.
-    // Artık viewModel.filteredNotes kullanılıyor.
+    // Arama ve Animasyon Durumları
+    @State private var isSearchExpanded: Bool = false
+    @Namespace private var animationNamespace
     
     var body: some View {
+        @Bindable var viewModel = viewModel
+        
         NavigationStack {
             ZStack(alignment: .bottom) {
-                MeshBackground().ignoresSafeArea()
+                // 1. KATMAN: Arka Plan
+                MeshBackground()
+                    .ignoresSafeArea()
                 
+                // 2. KATMAN: Ana Yapı (Header + Liste)
                 VStack(spacing: 0) {
-                    headerSection.padding(.bottom, 10)
                     
-                    // 3. İÇERİK LİSTESİ (Kaynaktan Değişiklik: viewModel.filteredNotes)
-                    if viewModel.filteredNotes.isEmpty {
-                        if !viewModel.searchText.isEmpty || viewModel.selectedType != nil {
-                            noResultsView
+                    // A. DİNAMİK HEADER (Safe Area ile otomatik uyumlu)
+                    // VStack'in en tepesinde olduğu için SwiftUI bunu çentiğin altına iter.
+                    dynamicHeader
+                        .padding(.top, 10)
+                        .padding(.bottom, 10)
+                        .zIndex(2) // Animasyonlarda üstte kalsın
+                    
+                    // B. İÇERİK ALANI (Scroll)
+                    ScrollView {
+                        if viewModel.filteredNotes.isEmpty {
+                            if !viewModel.searchText.isEmpty || viewModel.selectedType != nil {
+                                noResultsView.padding(.top, 80)
+                            } else {
+                                emptyStateView.padding(.top, 80)
+                            }
                         } else {
-                            emptyStateView
+                            MasonryVStack(
+                                columns: 2,
+                                spacing: 12,
+                                items: viewModel.filteredNotes
+                            ) { note in
+                                NavigationLink(
+                                    destination: NoteDetailView(note: note)
+                                ) {
+                                    VoiceNoteCard(note: note)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .contextMenu {
+                                    Button {
+                                        withAnimation {
+                                            note.isFavorite.toggle()
+                                        }
+                                    } label: {
+                                        Label(
+                                            note.isFavorite ? "Favorilerden Çıkar" : "Favorilere Ekle",
+                                            systemImage: note.isFavorite ? "heart.slash" : "heart"
+                                        )
+                                    }
+                                    Button { } label: {
+                                        Label(
+                                            "Paylaş",
+                                            systemImage: "square.and.arrow.up"
+                                        )
+                                    }
+                                    Divider()
+                                    Button(role: .destructive) {
+                                        withAnimation {
+                                            viewModel
+                                                .deleteNote(
+                                                    note,
+                                                    context: modelContext
+                                                )
+                                        }
+                                    } label: {
+                                        Label("Sil", systemImage: "trash")
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
+                            .padding(.bottom, 120) // Kayıt butonu payı
                         }
-                    } else {
-                        notesScrollView
                     }
+                    .scrollIndicators(.hidden)
                 }
                 
-                floatingRecordingBar.padding(.bottom, 20)
+                // 3. KATMAN: Yüzen Kayıt Butonu
+                floatingRecordingBar
+                    .padding(.bottom, 20)
+                    .zIndex(3)
             }
-            .navigationTitle(AppConstants.Texts.appName)
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack {
-                        // 🧪 TEST BUTONU (Sadece Debug modunda veya Simülatörde görünsün)
-                        Button {
-                            viewModel
-                                .debugSimulateRecording(context: modelContext)
-                        } label: {
-                            Image(systemName: "bolt.fill") // Şimşek ikonu
-                                .foregroundStyle(.yellow)
-                                .padding(8)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Circle())
-                        }
-                                    
-                        // MEVCUT AYARLAR BUTONU
-                        Button {
-                            viewModel.showSettings = true
-                        } label: {
-                            Image(systemName: AppConstants.Icons.gear)
-                                .foregroundStyle(
-                                    DesignSystem.Colors.primaryBlue
-                                )
-                                .padding(8)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Circle())
-                        }
-                    }
-                }
-            }
+            // Native Navigation Bar'ı gizle, kendi header'ımızı kullanıyoruz
+            .toolbar(.hidden, for: .navigationBar)
         }
         .fullScreenCover(isPresented: $viewModel.showMindMap) {
-            MindMapSheetView(
-                notes: viewModel.filteredNotes
-            ) // Haritaya da filtrelenmişleri veriyoruz
+            MindMapSheetView(notes: viewModel.filteredNotes)
         }
         .sheet(isPresented: $viewModel.showSettings) {
             SettingsView()
         }
-        .onChange(of: viewModel.audioManager.audioURL) { oldValue, newURL in
+        .onChange(of: viewModel.audioManager.audioURL) {
+ oldValue,
+            newURL in
             if let url = newURL {
                 viewModel.processAudio(url: url, context: modelContext)
             }
         }
         .onOpenURL { url in viewModel.handleDeepLink(url: url) }
         .onAppear {
-            viewModel.processPendingNotes(allNotes: allNotes)
-            // Sayfa açılınca aramayı başlat (Tüm notları gösterir)
+            viewModel.processPendingNotes()
             viewModel.triggerSearch(with: allNotes)
         }
-        // 👇 TETİKLEYİCİLER: Veri değiştiğinde aramayı yenile
-        .onChange(of: viewModel.searchText) { _, _ in
-            viewModel.triggerSearch(with: allNotes)
+        .onChange(of: viewModel.searchText) {
+            _,
+            _ in viewModel.triggerSearch(with: allNotes)
         }
-        .onChange(of: viewModel.selectedType) { _, _ in
-            viewModel.triggerSearch(with: allNotes)
+        .onChange(of: viewModel.selectedType) {
+            _,
+            _ in viewModel.triggerSearch(with: allNotes)
         }
-        .onChange(of: allNotes) { _, newNotes in
-            print("🔄 Veritabanı değişti: \(newNotes.count) not bulundu.")
-            viewModel.triggerSearch(with: newNotes)
+        .onChange(of: allNotes) {
+            _,
+            newNotes in viewModel.triggerSearch(with: newNotes)
         }
         .alert("Bağlantı Hatası", isPresented: $viewModel.showNetworkAlert) {
             Button(AppConstants.Texts.Actions.ok, role: .cancel) { }
@@ -109,75 +141,186 @@ struct HomeView: View {
         }
     }
     
-    // MARK: - UI BİLEŞENLERİ
+    // MARK: - DİNAMİK HEADER (SİMETRİK VE GÜVENLİ)
     
-    private var headerSection: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                HStack {
-                    Image(systemName: AppConstants.Icons.magnifyingGlass)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    TextField(
-                        AppConstants.Texts.Home.searchPlaceholder,
-                        text: $viewModel.searchText
-                    )
-                    .textFieldStyle(.plain)
+    private var dynamicHeader: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                // KATMAN 1: Sağ Üst Butonlar (MindMap & Ayarlar)
+                if !isSearchExpanded {
+                    HStack {
+                        Spacer()
+                        HStack(spacing: 8) {
+                            Button {
+                                viewModel.showMindMap = true
+                            } label: {
+                                Image(systemName: AppConstants.Icons.network)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(
+                                        DesignSystem.Colors.primaryBlue
+                                    )
+                                    .frame(width: 44, height: 44)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(Circle())
+                                    .shadow(
+                                        color: Color.black.opacity(0.05),
+                                        radius: 5
+                                    )
+                            }
+                            
+                            Button {
+                                viewModel.showSettings = true
+                            } label: {
+                                Image(systemName: AppConstants.Icons.gear)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(.gray)
+                                    .frame(width: 44, height: 44)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(Circle())
+                                    .shadow(
+                                        color: Color.black.opacity(0.05),
+                                        radius: 5
+                                    )
+                            }
+                        }
+                        .padding(.trailing, 16)
+                        .transition(.opacity)
+                    }
+                }
+                
+                // KATMAN 2: Ortadaki Arama/Logo Kapsülü (Dinamik Ada)
+                ZStack {
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .shadow(
+                            color: Color.black.opacity(0.08),
+                            radius: 10,
+                            x: 0,
+                            y: 4
+                        )
                     
-                    if !viewModel.searchText.isEmpty {
-                        Button {
-                            withAnimation { viewModel.searchText = "" }
-                        } label: {
-                            Image(systemName: AppConstants.Icons.xmarkCircle)
+                    if isSearchExpanded {
+                        // AÇIK MOD
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.secondary)
+                            
+                            TextField(
+                                "Notlarda ara...",
+                                text: $viewModel.searchText
+                            )
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 16, weight: .medium))
+                            .matchedGeometryEffect(
+                                id: "TitleText",
+                                in: animationNamespace
+                            )
+                            
+                            // Kapat Butonu (X)
+                            Button {
+                                withAnimation(
+                                    .spring(response: 0.3, dampingFraction: 0.7)
+                                ) {
+                                    isSearchExpanded = false
+                                    viewModel.searchText = ""
+                                    viewModel.selectedType = nil
+                                    UIApplication.shared
+                                        .sendAction(
+                                            #selector(
+                                                UIResponder.resignFirstResponder
+                                            ),
+                                            to: nil,
+                                            from: nil,
+                                            for: nil
+                                        )
+                                }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.gray.opacity(0.5))
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .transition(.opacity)
+                        
+                    } else {
+                        // KAPALI MOD
+                        HStack(spacing: 8) {
+                            Image(systemName: "waveform.circle.fill")
+                                .font(.system(size: 18))
                                 .foregroundStyle(
-                                    DesignSystem.Colors.textSecondary
+                                    DesignSystem.Gradients.primaryAction
+                                )
+                            
+                            Text("MindSift")
+                                .font(
+                                    .system(
+                                        size: 18,
+                                        weight: .bold,
+                                        design: .rounded
+                                    )
+                                )
+                                .foregroundStyle(
+                                    DesignSystem.Colors.textPrimary
+                                )
+                                .matchedGeometryEffect(
+                                    id: "TitleText",
+                                    in: animationNamespace
                                 )
                         }
-                    }
-                }
-                .padding(10)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                
-                Button {
-                    viewModel.showMindMap = true
-                } label: {
-                    Image(systemName: AppConstants.Icons.network)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                        .frame(width: 44, height: 44)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-            }
-            .padding(.horizontal)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    FilterChip(
-                        title: "Tümü",
-                        isSelected: viewModel.selectedType == nil
-                    ) {
-                        withAnimation { viewModel.selectedType = nil }
-                    }
-                    
-                    ForEach(NoteType.allCases, id: \.self) { type in
-                        FilterChip(
-                            title: type.rawValue,
-                            isSelected: viewModel.selectedType == type
-                        ) {
-                            withAnimation { viewModel.selectedType = type }
+                        .onTapGesture {
+                            HapticManager.shared.playSelection()
+                            withAnimation(
+                                .spring(response: 0.3, dampingFraction: 0.7)
+                            ) {
+                                isSearchExpanded = true
+                            }
                         }
                     }
                 }
-                .padding(.horizontal)
+                .frame(height: 50)
+                .frame(maxWidth: isSearchExpanded ? .infinity : 160)
+                .padding(.horizontal, isSearchExpanded ? 16 : 0)
+            }
+            .frame(height: 60)
+            
+            // KATEGORİLER (Sadece Arama Açıkken)
+            if isSearchExpanded {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        CategoryPill(
+                            type: nil,
+                            isSelected: viewModel.selectedType == nil,
+                            action: {
+                                withAnimation { viewModel.selectedType = nil }
+                            }
+                        )
+                        
+                        ForEach(NoteType.allCases, id: \.self) { type in
+                            CategoryPill(
+                                type: type,
+                                isSelected: viewModel.selectedType == type,
+                                action: {
+                                    withAnimation {
+                                        viewModel.selectedType = type
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 5)
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .padding(.bottom, 8)
     }
+    
+    // ... (Diğer tüm alt görünümler aynı kalıyor: emptyStateView, noResultsView, floatingRecordingBar, Helper Components)
+    // Lütfen dosyanın geri kalanını silme, olduğu gibi koru.
     
     private var emptyStateView: some View {
         VStack(spacing: 24) {
-            Spacer()
             ZStack {
                 Circle()
                     .fill(DesignSystem.Colors.primaryBlue.opacity(0.05))
@@ -186,7 +329,6 @@ struct HomeView: View {
                     .font(.system(size: 50))
                     .foregroundStyle(DesignSystem.Gradients.primaryAction)
             }
-            
             VStack(spacing: 8) {
                 Text(AppConstants.Texts.Home.emptyTitle)
                     .font(DesignSystem.Typography.titleLarge())
@@ -198,48 +340,17 @@ struct HomeView: View {
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .padding(.horizontal, 40)
             }
-            Spacer()
-            Spacer()
         }
     }
     
     private var noResultsView: some View {
         VStack(spacing: 16) {
-            Spacer()
             Image(systemName: AppConstants.Icons.magnifyingGlass)
                 .font(.system(size: 40))
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
             Text(AppConstants.Texts.Home.noResults)
                 .font(DesignSystem.Typography.body())
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
-            Spacer()
-            Spacer()
-        }
-    }
-    
-    private var notesScrollView: some View {
-        ScrollView {
-            // DİKKAT: Burada filteredNotes yerine viewModel.filteredNotes kullanılıyor
-            LazyVStack(spacing: 16) {
-                ForEach(viewModel.filteredNotes) { note in
-                    NavigationLink(destination: NoteDetailView(note: note)) {
-                        VoiceNoteCard(note: note)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .contextMenu {
-                        Button(role: .destructive) {
-                            viewModel.deleteNote(note, context: modelContext)
-                        } label: {
-                            Label(
-                                AppConstants.Texts.Actions.delete,
-                                systemImage: AppConstants.Icons.trash
-                            )
-                        }
-                    }
-                }
-            }
-            .padding()
-            .padding(.bottom, 100)
         }
     }
     
@@ -265,10 +376,9 @@ struct HomeView: View {
                     .foregroundStyle(.white.opacity(0.9))
                     .font(DesignSystem.Typography.headline())
             }
-            
             Spacer()
-            
             Button {
+                HapticManager.shared.playImpact(style: .heavy)
                 withAnimation(
                     .spring(
                         response: AppConstants.Animation.springResponse,
@@ -277,16 +387,14 @@ struct HomeView: View {
                 ) {
                     if viewModel.audioManager.isRecording {
                         viewModel.audioManager.stopRecording()
+                        HapticManager.shared.playNotification(type: .success)
                     } else {
                         viewModel.audioManager.startRecording()
                     }
                 }
             } label: {
                 ZStack {
-                    if viewModel.audioManager.isRecording {
-                        PulsingBlob()
-                    }
-                    
+                    if viewModel.audioManager.isRecording { PulsingBlob() }
                     Circle()
                         .fill(Color.white)
                         .frame(width: 60, height: 60)
@@ -296,24 +404,17 @@ struct HomeView: View {
                             x: 0,
                             y: 4
                         )
-                    
-                    if viewModel.isAnalyzing {
-                        ProgressView()
-                            .tint(DesignSystem.Colors.primaryPurple)
-                    } else {
+                    if viewModel.isAnalyzing { ProgressView().tint(DesignSystem.Colors.primaryPurple) } else {
                         Image(
                             systemName: viewModel.audioManager.isRecording ? AppConstants.Icons.stopFill : AppConstants.Icons.micFill
                         )
                         .font(.title2)
                         .foregroundStyle(
-                            viewModel.audioManager.isRecording ?
-                            DesignSystem.Gradients.recordingAction :
-                                DesignSystem.Gradients.primaryAction
+                            viewModel.audioManager.isRecording ? DesignSystem.Gradients.recordingAction : DesignSystem.Gradients.primaryAction
                         )
                     }
                 }
-            }
-            .disabled(viewModel.isAnalyzing)
+            }.disabled(viewModel.isAnalyzing)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
@@ -323,39 +424,54 @@ struct HomeView: View {
     }
 }
 
-// Yardımcı bileşenler (FilterChip, PulsingBlob, MindMapSheetView)
-// aynı kaldığı için buraya tekrar kopyalamadım, onları değiştirme.
-// Eğer dosyanın tamamını değiştireceksen eski dosyadaki o alt kısımları (class bittikten sonraki kısımları)
-// kopyalayıp buraya eklemeyi unutma.
-
 // MARK: - YARDIMCI BİLEŞENLER
 
-struct FilterChip: View {
-    let title: String
+struct CategoryPill: View {
+    let type: NoteType?
     let isSelected: Bool
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(DesignSystem.Typography.subheadline())
-                .fontWeight(.medium)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(
-                    isSelected ?
-                    DesignSystem.Colors.primaryBlue :
-                        Color.white.opacity(0.5)
+            HStack(spacing: 6) {
+                if let type = type {
+                    Image(systemName: type.iconName).font(.caption)
+                } else {
+                    Image(systemName: "square.grid.2x2.fill").font(.caption)
+                }
+                Text(type?.rawValue ?? "Tümü")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background {
+                if isSelected {
+                    if let type = type { Color(hex: type.colorHex) } else {
+                        DesignSystem.Colors.primaryBlue
+                    }
+                } else {
+                    ZStack { Rectangle().fill(.ultraThinMaterial); Color.white.opacity(0.1) }
+                }
+            }
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(
+                        isSelected ? .clear : Color.primary.opacity(0.1),
+                        lineWidth: 1
+                    )
+            )
+            .foregroundStyle(isSelected ? .white : .primary.opacity(0.8))
+            .shadow(
+                color: isSelected ? (
+                    type != nil ? Color(
+                        hex: type!.colorHex
+                    ) : DesignSystem.Colors.primaryBlue
                 )
-                .foregroundStyle(isSelected ? .white : .primary)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(
-                            isSelected ? Color.clear : Color.black.opacity(0.1),
-                            lineWidth: 1
-                        )
-                )
+                .opacity(0.3) : .clear,
+                radius: 8,
+                y: 4
+            )
+            .scaleEffect(isSelected ? 1.05 : 1.0)
         }
     }
 }
@@ -372,8 +488,7 @@ struct PulsingBlob: View {
             .opacity(opacity)
             .onAppear {
                 withAnimation(
-                    .easeOut(duration: 1.5)
-                    .repeatForever(autoreverses: false)
+                    .easeOut(duration: 1.5).repeatForever(autoreverses: false)
                 ) {
                     scale = 2.5
                     opacity = 0.0
@@ -386,16 +501,16 @@ struct MindMapSheetView: View {
     let notes: [VoiceNote]
     @Environment(\.dismiss) var dismiss
     
-    @State private var mapScale: CGFloat = 1.0
+    @State private var mapScale: CGFloat = 0.6
     @State private var mapOffset: CGSize = .zero
     @State private var currentDragOffset: CGSize = .zero
     @State private var currentMagnification: CGFloat = 1.0
     
     var body: some View {
-        // 👇 DÜZELTME 1: NavigationStack eklendi. Linkler artık çalışacak.
         NavigationStack {
             ZStack {
-                MeshBackground().ignoresSafeArea()
+                MeshBackground()
+                    .ignoresSafeArea()
                 
                 GeometryReader { geo in
                     ZStack {
@@ -428,14 +543,14 @@ struct MindMapSheetView: View {
                                         val in currentMagnification = val
                                     }
                                     .onEnded { val in
-                                        mapScale *= val
+                                        let newScale = mapScale * val
+                                        mapScale = min(max(newScale, 0.2), 3.0)
                                         currentMagnification = 1.0
                                     }
                             )
                     }
                 }
                 
-                // Kapatma Butonu
                 VStack {
                     HStack {
                         Spacer()
@@ -449,23 +564,18 @@ struct MindMapSheetView: View {
                     Spacer()
                 }
                 
-                // Kontrol Butonları
                 VStack {
                     Spacer()
                     HStack {
                         Spacer()
-                        mapControls
-                            .padding(.trailing, 20)
-                            .padding(.bottom, 50)
+                        mapControls.padding(.trailing, 20).padding(.bottom, 50)
                     }
                 }
             }
-            // Navigation Bar'ı gizle ki tam ekran deneyimi bozulmasın
             .toolbar(.hidden, for: .navigationBar)
         }
     }
     
-    // ... (mapControls aynı kalıyor) ...
     private var mapControls: some View {
         VStack(spacing: 12) {
             Button(
@@ -479,7 +589,7 @@ struct MindMapSheetView: View {
                 }
             Button(
                 action: { withAnimation(.spring()) {
-                    mapScale = 1.0; mapOffset = .zero
+                    mapScale = 0.6; mapOffset = .zero
                 }
                 }) {
                     Image(systemName: AppConstants.Icons.location)
@@ -490,7 +600,7 @@ struct MindMapSheetView: View {
                         .foregroundStyle(DesignSystem.Colors.primaryBlue)
                 }
             Button(
-                action: { withAnimation { mapScale = max(mapScale - 0.5, 0.5) }
+                action: { withAnimation { mapScale = max(mapScale - 0.5, 0.2) }
                 }) {
                     Image(systemName: AppConstants.Icons.minus)
                         .font(.title3)
@@ -502,3 +612,4 @@ struct MindMapSheetView: View {
         .foregroundStyle(DesignSystem.Colors.textPrimary)
     }
 }
+

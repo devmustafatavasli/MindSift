@@ -15,88 +15,96 @@ class ShareViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        // 1. Paylaşılan içeriği al
+        // 1. Gelen içeriği kontrol et
         guard let extensionItem = extensionContext?.inputItems.first as? NSExtensionItem,
               let itemProvider = extensionItem.attachments?.first else {
-            self.closeExtension()
+            closeExtension()
             return
         }
         
-        // 2. Ses dosyası olup olmadığını kontrol et
-        if itemProvider.hasItemConformingToTypeIdentifier(UTType.audio.identifier) {
-            itemProvider.loadItem(forTypeIdentifier: UTType.audio.identifier, options: nil) { (item, error) in
-                if let url = item as? URL {
-                    self.saveAudioFile(sourceUrl: url)
+        // 2. Ses dosyası mı?
+        if itemProvider
+            .hasItemConformingToTypeIdentifier(UTType.audio.identifier) {
+            itemProvider
+                .loadItem(forTypeIdentifier: UTType.audio.identifier, options: nil) { (
+                    item,
+                    error
+                ) in
+                    if let url = item as? URL {
+                        self.processSharedFile(sourceUrl: url)
+                    } else {
+                        self.closeExtension()
+                    }
                 }
-            }
         } else {
             closeExtension()
         }
     }
 
-    private func saveAudioFile(sourceUrl: URL) {
-        // App Group Kimliği (Ana uygulamadakiyle BİREBİR AYNI olmalı)
-        let appGroupIdentifier = "group.com.devmustafatavasli.MindSift" // <-- BURAYI KENDİ GRUP ID'N İLE DEĞİŞTİR
-        
-        guard let fileContainer = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
-            print("Hata: App Group bulunamadı.")
-            closeExtension()
-            return
-        }
-        
-        // 3. Dosyayı Ortak Klasöre Kopyala
-        let fileName = "shared_\(Date().timeIntervalSince1970).m4a"
-        let destinationUrl = fileContainer.appendingPathComponent(fileName)
+    private func processSharedFile(sourceUrl: URL) {
+        // App Group Yolu (StorageManager'dan alıyoruz, hata yapma şansı yok)
+        let destinationUrl = StorageManager.shared.getNewRecordingURL()
+        let fileName = destinationUrl.lastPathComponent
         
         do {
-            // Güvenlik kapsamı (Security Scoped Resource) erişimi gerekebilir
+            // Güvenlik Kapsamı Erişimi
             let secured = sourceUrl.startAccessingSecurityScopedResource()
+            
+            // Dosyayı Kopyala
             try FileManager.default.copyItem(at: sourceUrl, to: destinationUrl)
+            
             if secured { sourceUrl.stopAccessingSecurityScopedResource() }
             
-            // 4. Veritabanına Kaydet
-            saveToDatabase(audioFileName: fileName, containerURL: fileContainer)
+            // Veritabanına Kaydet
+            saveToDatabase(fileName: fileName)
             
         } catch {
-            print("Dosya kopyalama hatası: \(error)")
+            print("❌ Dosya kopyalama hatası: \(error)")
             closeExtension()
         }
     }
     
-    private func saveToDatabase(audioFileName: String, containerURL: URL) {
+    private func saveToDatabase(fileName: String) {
         do {
-            // SwiftData Konteynerini Manuel Başlat (Shared)
-            let storeURL = containerURL.appendingPathComponent("MindSift.sqlite")
+            // SwiftData Kurulumu (Manuel ama Shared Path ile)
+            // StorageManager.shared.containerURL bize doğru AppGroup yolunu verir.
+            let storeURL = StorageManager.shared.containerURL.appendingPathComponent(
+                "MindSift.sqlite"
+            )
             let config = ModelConfiguration(url: storeURL, allowsSave: true)
-            let container = try ModelContainer(for: VoiceNote.self, configurations: config)
+            
+            // VoiceNote modeli her iki target'ta da seçili olmalı!
+            let container = try ModelContainer(
+                for: VoiceNote.self,
+                configurations: config
+            )
             let context = ModelContext(container)
             
-            // Yeni Not Oluştur
             let newNote = VoiceNote(
-                audioFileName: audioFileName,
-                transcription: nil, // Henüz yok
+                audioFileName: fileName,
+                transcription: nil,
                 title: "Dışarıdan Gelen Kayıt",
                 summary: "Analiz için uygulamayı açın...",
                 type: .unclassified,
-                isProcessed: false // Ana uygulama açılınca bunu görüp işleyecek
+                isProcessed: false // Ana uygulama açılınca işleyecek
             )
             
             context.insert(newNote)
             try context.save()
-            print("✅ Paylaşılan dosya veritabanına eklendi.")
+            print("✅ Paylaşılan dosya kaydedildi: \(fileName)")
             
-            // İşlem bitti, eklentiyi kapat
             closeExtension()
             
         } catch {
-            print("Veritabanı hatası: \(error)")
+            print("❌ Veritabanı hatası: \(error)")
             closeExtension()
         }
     }
     
     private func closeExtension() {
         DispatchQueue.main.async {
-            self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+            self.extensionContext?
+                .completeRequest(returningItems: [], completionHandler: nil)
         }
     }
 }

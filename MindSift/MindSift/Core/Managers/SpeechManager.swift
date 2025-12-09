@@ -5,22 +5,16 @@
 //  Created by Mustafa TAVASLI on 24.11.2025.
 //
 
-
 import Foundation
-import Combine
 import Speech
+import Observation // 👈 YENİ
 
-// MARK: - Speech Manager
-// Sadece tek bir işi var: Verilen ses dosyasını metne çevirmek.
-// Clean Architecture: Kayıt işi AudioManager'da, Çeviri işi burada.
-
-class SpeechManager: ObservableObject {
+@Observable // 👈 ARTIK BU VAR
+class SpeechManager {
     
-    // İşlem durumunu takip etmek için
-    @Published var isTranscribing: Bool = false
-    @Published var errorMessage: String?
+    var isTranscribing: Bool = false
+    var errorMessage: String?
     
-    // İzinleri kontrol et
     func checkPermissions() {
         SFSpeechRecognizer.requestAuthorization { status in
             DispatchQueue.main.async {
@@ -38,17 +32,15 @@ class SpeechManager: ObservableObject {
         }
     }
     
-    // Ana Fonksiyon: Dosya URL'ini al, Metni ver
     func transcribeAudio(url: URL, completion: @escaping (String?) -> Void) {
-        
-        // 1. Türkçe dil desteğiyle tanı (Cihaz diline göre ayarlayabiliriz)
+        // 1. Türkçe dil desteği
         guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "tr-TR")) else {
             self.errorMessage = "Bu cihazda Türkçe konuşma tanıma desteklenmiyor."
             completion(nil)
             return
         }
         
-        // 2. Dosyanın okunabilir olduğunu kontrol et
+        // 2. Kullanılabilirlik kontrolü
         if !recognizer.isAvailable {
             self.errorMessage = "Konuşma tanıma şu an kullanılamıyor."
             completion(nil)
@@ -57,23 +49,26 @@ class SpeechManager: ObservableObject {
         
         DispatchQueue.main.async { self.isTranscribing = true }
         
-        // 3. İstek oluştur (Cihaz içi işleme öncelikli)
+        // 3. İstek oluştur
         let request = SFSpeechURLRecognitionRequest(url: url)
-        request.shouldReportPartialResults = false // Sadece son sonucu istiyoruz
-        request.requiresOnDeviceRecognition = false // İnternet varsa daha iyi sonuç için sunucu kullanabilir
+        request.shouldReportPartialResults = false
+        request.requiresOnDeviceRecognition = false
         
         // 4. İşlemi Başlat
-        recognizer.recognitionTask(with: request) { result, error in
+        recognizer.recognitionTask(with: request) {
+ result,
+ error in
             DispatchQueue.main.async {
                 self.isTranscribing = false
                 
                 if let error = error {
                     print("❌ Çeviri Hatası: \(error.localizedDescription)")
-                    // Hata olsa bile nil dön, akış bozulmasın
                     completion(nil)
-                } else if let result = result, result.isFinal {
-                    // SONUÇ BAŞARILI
-                    print("📝 Çevrilen Metin: \(result.bestTranscription.formattedString)")
+                } else if let result = result,
+                          result.isFinal {
+                    print(
+                        "📝 Çevrilen Metin: \(result.bestTranscription.formattedString)"
+                    )
                     completion(result.bestTranscription.formattedString)
                 }
             }
